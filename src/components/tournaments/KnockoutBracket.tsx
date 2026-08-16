@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { Match, Player } from '../../lib/types';
 import { ScoreEntry } from '../matches/ScoreEntry';
-import { Trophy, Award, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Trophy, Award, AlertTriangle, CheckCircle2, Shield } from 'lucide-react';
 
 interface KnockoutBracketProps {
   players: Player[];
@@ -87,13 +87,27 @@ export const KnockoutBracket: React.FC<KnockoutBracketProps> = ({
           </div>
           <div>
             <span className="text-xs uppercase tracking-widest font-bold text-amber-400">Tournament Champion</span>
-            <h2 className="text-3xl sm:text-4xl font-display font-bold text-text mt-1">{champion.name}</h2>
-            {champion.team && <p className="text-sm text-text-muted">{champion.team}</p>}
+            <div className="flex items-center justify-center gap-3 mt-1">
+              {champion.profile_image && (
+                <img
+                  src={champion.profile_image}
+                  alt=""
+                  className="w-10 h-10 rounded-full object-cover border-2 border-amber-400 shadow"
+                />
+              )}
+              <h2 className="text-3xl sm:text-4xl font-display font-bold text-text">{champion.name}</h2>
+            </div>
+            {champion.team && (
+              <p className="text-sm text-text-muted mt-1 flex items-center justify-center gap-1.5 font-semibold">
+                <Shield className="w-4 h-4 text-accent" />
+                <span>{champion.team}</span>
+              </p>
+            )}
           </div>
           {runnerUp && (
             <div className="text-xs text-text-muted pt-2 border-t border-amber-400/20 flex items-center justify-center gap-2">
               <Award className="w-4 h-4 text-slate-400" />
-              <span>Runner-up: <strong>{runnerUp.name}</strong></span>
+              <span>Runner-up: <strong>{runnerUp.name}</strong> {runnerUp.team ? `(${runnerUp.team})` : ''}</span>
             </div>
           )}
         </div>
@@ -111,9 +125,9 @@ export const KnockoutBracket: React.FC<KnockoutBracketProps> = ({
 
         <div className="flex items-stretch gap-8 min-w-[850px] py-4">
           {groupedRounds.map((gr, rIdx) => (
-            <div key={gr.roundName} className="flex-1 flex flex-col justify-around min-w-[240px] space-y-4">
+            <div key={gr.roundName} className="flex-1 flex flex-col justify-around min-w-[260px] space-y-4">
               {/* Round Header */}
-              <div className="p-2.5 rounded-xl bg-surface border border-border-light text-center font-display font-bold text-sm text-accent flex items-center justify-between">
+              <div className="p-2.5 rounded-xl bg-surface border border-border-light text-center font-display font-bold text-sm text-accent flex items-center justify-between shadow-sm">
                 <span className="text-xs text-text-muted">Round {rIdx + 1}</span>
                 <span>{gr.roundName}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-hover text-text-muted">
@@ -150,7 +164,7 @@ export const KnockoutBracket: React.FC<KnockoutBracketProps> = ({
                             <CheckCircle2 className="w-3 h-3" /> Complete
                           </span>
                         ) : isLocked ? (
-                          <span className="text-text-muted italic">Waiting for previous round</span>
+                          <span className="text-text-muted italic">Waiting for qualifier</span>
                         ) : (
                           <span className="text-accent font-medium">Ready</span>
                         )}
@@ -164,9 +178,31 @@ export const KnockoutBracket: React.FC<KnockoutBracketProps> = ({
                             : 'bg-bg/40 text-text'
                         }`}
                       >
-                        <span className="truncate flex-1">
-                          {p1 ? p1.name : match.player1_placeholder || 'Waiting for Qualifier'}
-                        </span>
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          {p1?.profile_image ? (
+                            <img
+                              src={p1.profile_image}
+                              alt=""
+                              className="w-6 h-6 rounded-full object-cover border border-accent/40 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-surface-hover border border-border-light flex items-center justify-center text-[10px] text-text-muted shrink-0">
+                              {p1 ? p1.name.slice(0, 1) : '?'}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1 truncate">
+                            <span className="truncate block font-semibold">
+                              {p1 ? p1.name : match.player1_placeholder || 'Waiting for Qualifier'}
+                            </span>
+                            {p1?.team && (
+                              <span className="text-[10px] text-text-muted font-normal block truncate flex items-center gap-1">
+                                <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                                <span>{p1.team}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
                         <span className="font-mono font-bold text-sm px-2 rounded bg-surface shrink-0 ml-2">
                           {isComplete ? match.player1_score : '-'}
                         </span>
@@ -180,9 +216,31 @@ export const KnockoutBracket: React.FC<KnockoutBracketProps> = ({
                             : 'bg-bg/40 text-text'
                         }`}
                       >
-                        <span className="truncate flex-1">
-                          {p2 ? p2.name : match.player2_placeholder || 'Waiting for Qualifier'}
-                        </span>
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          {p2?.profile_image ? (
+                            <img
+                              src={p2.profile_image}
+                              alt=""
+                              className="w-6 h-6 rounded-full object-cover border border-accent/40 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-surface-hover border border-border-light flex items-center justify-center text-[10px] text-text-muted shrink-0">
+                              {p2 ? p2.name.slice(0, 1) : '?'}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1 truncate">
+                            <span className="truncate block font-semibold">
+                              {p2 ? p2.name : match.player2_placeholder || 'Waiting for Qualifier'}
+                            </span>
+                            {p2?.team && (
+                              <span className="text-[10px] text-text-muted font-normal block truncate flex items-center gap-1">
+                                <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                                <span>{p2.team}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
                         <span className="font-mono font-bold text-sm px-2 rounded bg-surface shrink-0 ml-2">
                           {isComplete ? match.player2_score : '-'}
                         </span>

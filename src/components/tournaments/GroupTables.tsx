@@ -162,7 +162,7 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5 text-accent" />
-                  <span>Assigned Teams ({group.players.length})</span>
+                  <span>Assigned Teams & Clubs ({group.players.length})</span>
                 </span>
               </div>
 
@@ -179,16 +179,26 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-surface-hover border border-border-light flex items-center justify-center font-bold text-xs text-accent shrink-0">
-                          {idx + 1}
-                        </div>
+                        {player.profile_image ? (
+                          <img
+                            src={player.profile_image}
+                            alt=""
+                            className="w-8 h-8 rounded-lg object-cover border border-accent/40 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-lg bg-surface-hover border border-border-light flex items-center justify-center font-bold text-xs text-accent shrink-0">
+                            {idx + 1}
+                          </div>
+                        )}
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold text-xs text-text truncate">{player.name}</div>
-                          {player.team && (
-                            <div className="text-[10px] text-text-muted truncate flex items-center gap-1">
-                              <Shield className="w-2.5 h-2.5 text-accent" />
-                              <span>{player.team}</span>
+                          {player.team ? (
+                            <div className="text-[10px] text-text-muted truncate flex items-center gap-1 font-medium">
+                              <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                              <span className="truncate">{player.team}</span>
                             </div>
+                          ) : (
+                            <div className="text-[10px] text-text-muted">Player</div>
                           )}
                         </div>
                       </div>
@@ -215,7 +225,7 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-accent" />
-                    <span>Group Fixtures ({group.matches.length})</span>
+                    <span>Group Fixtures & Team Matchups ({group.matches.length})</span>
                   </span>
                   <span className="text-[11px] text-text-muted font-mono">
                     {group.completedMatches} / {group.totalMatches} Completed
@@ -233,7 +243,18 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
                         key={m.id}
                         className="p-2.5 rounded-xl bg-surface border border-border-light flex items-center justify-between gap-2 text-xs hover:border-accent/40 transition-colors"
                       >
-                        <div className="flex-1 text-right font-semibold truncate">{p1?.name || 'Player 1'}</div>
+                        {/* Team 1 */}
+                        <div className="flex-1 text-right min-w-0">
+                          <div className="font-semibold truncate">{p1?.name || 'Player 1'}</div>
+                          {p1?.team && (
+                            <div className="text-[10px] text-text-muted truncate font-normal flex items-center justify-end gap-1">
+                              <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                              <span className="truncate">{p1.team}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Score / VS */}
                         <div className="px-2.5 py-1 rounded-lg bg-bg font-mono font-bold shrink-0 border border-border-light/60">
                           {isComplete ? (
                             <span className="text-text font-bold">{m.player1_score} - {m.player2_score}</span>
@@ -241,7 +262,17 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
                             <span className="text-text-muted uppercase text-[10px]">VS</span>
                           )}
                         </div>
-                        <div className="flex-1 text-left font-semibold truncate">{p2?.name || 'Player 2'}</div>
+
+                        {/* Team 2 */}
+                        <div className="flex-1 text-left min-w-0">
+                          <div className="font-semibold truncate">{p2?.name || 'Player 2'}</div>
+                          {p2?.team && (
+                            <div className="text-[10px] text-text-muted truncate font-normal flex items-center justify-start gap-1">
+                              <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                              <span className="truncate">{p2.team}</span>
+                            </div>
+                          )}
+                        </div>
                         
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button

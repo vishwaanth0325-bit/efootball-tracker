@@ -28,15 +28,23 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, onEdit, onDelete
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-12 h-12 rounded-2xl bg-accent/15 border border-accent/40 flex items-center justify-center text-accent font-display font-bold text-xl shrink-0">
-            {getInitials(player.name)}
-          </div>
-          <div className="min-w-0">
+          {player.profile_image ? (
+            <img
+              src={player.profile_image}
+              alt={player.name}
+              className="w-12 h-12 rounded-2xl object-cover border border-accent/40 shadow-sm shrink-0"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-2xl bg-accent/15 border border-accent/40 flex items-center justify-center text-accent font-display font-bold text-xl shrink-0">
+              {getInitials(player.name)}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
             <h3 className="font-bold text-text text-base truncate">{player.name}</h3>
             {player.team ? (
-              <p className="text-text-muted text-xs flex items-center gap-1 truncate">
+              <p className="text-text-muted text-xs flex items-center gap-1 truncate font-medium">
                 <Shield className="w-3 h-3 text-accent shrink-0" />
-                <span>{player.team}</span>
+                <span className="truncate">{player.team}</span>
               </p>
             ) : (
               <p className="text-text-muted text-xs">Player</p>

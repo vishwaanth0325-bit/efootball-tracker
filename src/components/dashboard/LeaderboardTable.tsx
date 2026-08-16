@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { StandingRow } from '../../lib/types';
+import { Shield } from 'lucide-react';
 
 interface LeaderboardTableProps {
   rows: StandingRow[];
@@ -17,7 +18,7 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ rows, limit 
         <thead>
           <tr>
             <th className="w-12 text-center">#</th>
-            <th className="text-left">Player</th>
+            <th className="text-left">Player & Team</th>
             <th className="text-center w-12">P</th>
             <th className="text-center w-12">W</th>
             <th className="text-center w-12">D</th>
@@ -43,17 +44,40 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ rows, limit 
                 className="cursor-pointer hover:bg-surface-hover transition-colors"
               >
                 <td className={`text-center font-bold ${rankClass}`}>{rank}</td>
-                <td className="font-medium text-text">{row.player.name}</td>
-                <td className="text-center">{row.stats.played}</td>
-                <td className="text-center">{row.stats.wins}</td>
-                <td className="text-center">{row.stats.draws}</td>
-                <td className="text-center hidden sm:table-cell">{row.stats.losses}</td>
+                <td>
+                  <div className="flex items-center gap-2.5 min-w-0 py-0.5">
+                    {row.player.profile_image ? (
+                      <img
+                        src={row.player.profile_image}
+                        alt=""
+                        className="w-7 h-7 rounded-lg object-cover border border-accent/30 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-7 h-7 rounded-lg bg-surface-hover border border-border-light flex items-center justify-center font-bold text-xs text-accent shrink-0">
+                        {row.player.name.slice(0, 1)}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-semibold text-text truncate">{row.player.name}</div>
+                      {row.player.team && (
+                        <div className="text-[11px] text-text-muted truncate flex items-center gap-1 font-normal">
+                          <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                          <span>{row.player.team}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </td>
+                <td className="text-center font-medium">{row.stats.played}</td>
+                <td className="text-center text-emerald-400 font-semibold">{row.stats.wins}</td>
+                <td className="text-center text-amber-400 font-medium">{row.stats.draws}</td>
+                <td className="text-center hidden sm:table-cell text-red-400">{row.stats.losses}</td>
                 <td className="text-center hidden md:table-cell">{row.stats.goals_for}</td>
                 <td className="text-center hidden md:table-cell">{row.stats.goals_against}</td>
-                <td className="text-center font-medium">
+                <td className="text-center font-mono font-medium">
                   {row.stats.goal_diff > 0 ? `+${row.stats.goal_diff}` : row.stats.goal_diff}
                 </td>
-                <td className="text-center font-bold text-accent">{row.stats.points}</td>
+                <td className="text-center font-bold font-mono text-accent text-base">{row.stats.points}</td>
               </tr>
             );
           })}

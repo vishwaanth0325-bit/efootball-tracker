@@ -44,6 +44,7 @@ import {
   CheckCircle2,
   Edit3,
   SlidersHorizontal,
+  Shield,
 } from 'lucide-react';
 
 type Tab = 'overview' | 'groups' | 'knockout' | 'players' | 'fixtures' | 'standings';
@@ -804,16 +805,50 @@ const TournamentDetails: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 text-sm font-semibold">
-                    <span className="truncate flex-1 text-right">
-                      {tournamentPlayers.find(p => p.id === match.player1_id)?.name || match.player1_placeholder || 'Player 1'}
-                    </span>
-                    <div className="px-2 py-1 rounded bg-bg font-mono font-bold text-xs shrink-0">
+                  <div className="flex items-center justify-between gap-2 text-sm font-semibold my-2">
+                    {/* Player 1 */}
+                    <div className="flex-1 text-right min-w-0">
+                      {(() => {
+                        const p1 = tournamentPlayers.find(p => p.id === match.player1_id);
+                        return (
+                          <div>
+                            <div className="truncate font-semibold text-text">
+                              {p1?.name || match.player1_placeholder || 'Player 1'}
+                            </div>
+                            {p1?.team && (
+                              <div className="text-[10px] text-text-muted font-normal truncate flex items-center justify-end gap-1">
+                                <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                                <span>{p1.team}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    <div className="px-2.5 py-1 rounded-lg bg-bg font-mono font-bold text-xs shrink-0 border border-border-light/60">
                       {match.status === 'completed' ? `${match.player1_score} - ${match.player2_score}` : 'vs'}
                     </div>
-                    <span className="truncate flex-1 text-left">
-                      {tournamentPlayers.find(p => p.id === match.player2_id)?.name || match.player2_placeholder || 'Player 2'}
-                    </span>
+
+                    {/* Player 2 */}
+                    <div className="flex-1 text-left min-w-0">
+                      {(() => {
+                        const p2 = tournamentPlayers.find(p => p.id === match.player2_id);
+                        return (
+                          <div>
+                            <div className="truncate font-semibold text-text">
+                              {p2?.name || match.player2_placeholder || 'Player 2'}
+                            </div>
+                            {p2?.team && (
+                              <div className="text-[10px] text-text-muted font-normal truncate flex items-center justify-start gap-1">
+                                <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                                <span>{p2.team}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
 
                   <div className="flex justify-end pt-2 border-t border-border-light/40">

@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Match, Player } from '../../lib/types';
-import { Trash2, CheckCircle2 } from 'lucide-react';
+import { Trash2, CheckCircle2, Shield } from 'lucide-react';
 
 interface MatchCardProps {
   match: Match;
@@ -42,22 +42,40 @@ export const MatchCard: React.FC<MatchCardProps> = ({
       </div>
 
       <div className="flex items-center justify-between gap-4 my-3">
+        {/* Player 1 */}
         <div className="flex-1 text-right min-w-0">
-          <div className={`font-display font-bold text-base truncate ${
-            isCompleted && (match.player1_score ?? 0) > (match.player2_score ?? 0) ? 'text-accent' : 'text-text'
-          }`}>
-            {player1?.name || match.player1_placeholder || 'Player 1'}
+          <div className="flex items-center justify-end gap-2">
+            <div className="min-w-0">
+              <div className={`font-display font-bold text-base truncate ${
+                isCompleted && (match.player1_score ?? 0) > (match.player2_score ?? 0) ? 'text-accent' : 'text-text'
+              }`}>
+                {player1?.name || match.player1_placeholder || 'Player 1'}
+              </div>
+              {player1?.team && (
+                <div className="text-[11px] text-text-muted truncate flex items-center justify-end gap-1">
+                  <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                  <span>{player1.team}</span>
+                </div>
+              )}
+            </div>
+            {player1?.profile_image && (
+              <img
+                src={player1.profile_image}
+                alt=""
+                className="w-8 h-8 rounded-full object-cover border border-accent/40 shrink-0"
+              />
+            )}
           </div>
-          {player1?.team && <div className="text-[10px] text-text-muted truncate">{player1.team}</div>}
         </div>
 
+        {/* Score / VS Box */}
         <div className="shrink-0 flex flex-col items-center justify-center min-w-[70px]">
           {isCompleted ? (
             <div className="bg-surface px-3 py-1.5 rounded-lg font-mono font-bold text-xl tracking-wider border border-border-light shadow-inner">
               {match.player1_score} - {match.player2_score}
             </div>
           ) : (
-            <span className="text-text-muted font-display font-bold text-sm uppercase tracking-wider px-2 py-1 rounded bg-surface">
+            <span className="text-text-muted font-display font-bold text-sm uppercase tracking-wider px-2 py-1 rounded bg-surface border border-border-light">
               VS
             </span>
           )}
@@ -68,13 +86,30 @@ export const MatchCard: React.FC<MatchCardProps> = ({
           )}
         </div>
 
+        {/* Player 2 */}
         <div className="flex-1 text-left min-w-0">
-          <div className={`font-display font-bold text-base truncate ${
-            isCompleted && (match.player2_score ?? 0) > (match.player1_score ?? 0) ? 'text-accent' : 'text-text'
-          }`}>
-            {player2?.name || match.player2_placeholder || 'Player 2'}
+          <div className="flex items-center justify-start gap-2">
+            {player2?.profile_image && (
+              <img
+                src={player2.profile_image}
+                alt=""
+                className="w-8 h-8 rounded-full object-cover border border-accent/40 shrink-0"
+              />
+            )}
+            <div className="min-w-0">
+              <div className={`font-display font-bold text-base truncate ${
+                isCompleted && (match.player2_score ?? 0) > (match.player1_score ?? 0) ? 'text-accent' : 'text-text'
+              }`}>
+                {player2?.name || match.player2_placeholder || 'Player 2'}
+              </div>
+              {player2?.team && (
+                <div className="text-[11px] text-text-muted truncate flex items-center justify-start gap-1">
+                  <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                  <span>{player2.team}</span>
+                </div>
+              )}
+            </div>
           </div>
-          {player2?.team && <div className="text-[10px] text-text-muted truncate">{player2.team}</div>}
         </div>
       </div>
 

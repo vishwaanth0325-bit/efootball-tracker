@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ChevronLeft, Users } from 'lucide-react';
+import { ChevronLeft, Users, Shield } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { computePlayerStats, getCompletedPlayerMatches, getMatchResult, formatGD } from '../lib/calculations';
 import { Badge } from '../components/ui/Badge';
@@ -47,7 +47,6 @@ const PlayerProfile: React.FC = () => {
 
   const stats = computePlayerStats(player.id, state.matches, selectedTournamentId === 'career' ? undefined : selectedTournamentId, tournament);
 
-  // Clean sheets = matches where goals_against = 0
   const cleanSheets = filteredMatches.filter(m => {
     const isP1 = m.player1_id === player.id;
     const ga = isP1 ? (m.player2_score ?? 0) : (m.player1_score ?? 0);
@@ -67,7 +66,6 @@ const PlayerProfile: React.FC = () => {
   };
 
   const recentMatches = [...filteredMatches].reverse().slice(0, 5);
-
   const initials = player.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
   const statItems = [
@@ -101,18 +99,31 @@ const PlayerProfile: React.FC = () => {
       </Link>
 
       {/* Player Header */}
-      <div className="card p-6 flex items-center gap-6 flex-wrap">
-        <div
-          className="w-20 h-20 rounded-full flex items-center justify-center font-display text-2xl font-bold border-2 flex-shrink-0"
-          style={{ background: 'var(--color-accent-glow)', borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }}
-        >
-          {initials}
-        </div>
+      <div className="card p-6 flex items-center gap-6 flex-wrap border border-border-light">
+        {player.profile_image ? (
+          <img
+            src={player.profile_image}
+            alt={player.name}
+            className="w-20 h-20 rounded-2xl object-cover border-2 border-accent shadow-md shrink-0"
+          />
+        ) : (
+          <div
+            className="w-20 h-20 rounded-2xl flex items-center justify-center font-display text-2xl font-bold border-2 shrink-0"
+            style={{ background: 'var(--color-accent-glow)', borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }}
+          >
+            {initials}
+          </div>
+        )}
         <div>
           <h1 className="font-display text-3xl mb-1">{player.name}</h1>
           <div className="flex flex-wrap items-center gap-3">
             {player.efootball_username && <span className="text-muted text-sm">@{player.efootball_username}</span>}
-            {player.team && <Badge variant="default">{player.team}</Badge>}
+            {player.team && (
+              <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-accent/15 text-accent text-xs font-semibold border border-accent/30">
+                <Shield size={12} /> {player.team}
+              </span>
+            )}
+            {player.platform && <Badge variant="default">{player.platform}</Badge>}
           </div>
         </div>
       </div>
@@ -206,8 +217,12 @@ const PlayerProfile: React.FC = () => {
                           </td>
                           <td>
                             {opponent ? (
-                              <Link to={`/players/${opponent.id}`} className="hover:text-accent transition-colors">
-                                {opponent.name}
+                              <Link to={`/players/${opponent.id}`} className="hover:text-accent transition-colors flex items-center gap-1.5">
+                                {opponent.profile_image && (
+                                  <img src={opponent.profile_image} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                )}
+                                <span>{opponent.name}</span>
+                                {opponent.team && <span className="text-xs text-text-muted">({opponent.team})</span>}
                               </Link>
                             ) : '—'}
                           </td>
@@ -242,7 +257,9 @@ const PlayerProfile: React.FC = () => {
                 <div key={m.id} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-3">
                     {result && <div className={`form-dot form-dot-${result}`}>{result}</div>}
-                    <span className="text-muted">vs {opponent?.name || '—'}</span>
+                    <span className="text-muted">
+                      vs {opponent?.name || '—'} {opponent?.team ? `(${opponent.team})` : ''}
+                    </span>
                   </div>
                   <span className="font-mono font-bold">{getScore(m)}</span>
                 </div>
