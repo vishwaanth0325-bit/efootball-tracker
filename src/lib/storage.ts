@@ -3,8 +3,8 @@ import type { Player, Tournament, TournamentPlayer, Match } from './types';
 
 // ─── Environment & Supabase Client Initialization ────────────────────────────
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://zbdbfkuosaunqaawbzvn.supabase.co';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_RqJNaSpqK3roXxnJas0bTQ_K8J8xrRr';
 
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
