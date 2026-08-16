@@ -7,30 +7,24 @@ import { PlayerForm } from '../components/players/PlayerForm';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
 import { Plus, Search, Users } from 'lucide-react';
 import { Badge } from '../components/ui/Badge';
 
 const Players: React.FC = () => {
   const { state, addPlayer, updatePlayer, deletePlayer } = useApp();
   const { showToast } = useToast();
-  
+
   const [search, setSearch] = useState('');
-  const [platformFilter, setPlatformFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [deletingPlayerId, setDeletingPlayerId] = useState<string | null>(null);
 
   const filteredPlayers = useMemo(() => {
     return state.players.filter(p => {
-      const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.efootball_username.toLowerCase().includes(search.toLowerCase());
-      const matchesPlatform = platformFilter === 'all' || p.platform === platformFilter;
-      const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
-      return matchesSearch && matchesPlatform && matchesStatus;
+      const s = search.toLowerCase();
+      return p.name.toLowerCase().includes(s) || (p.team && p.team.toLowerCase().includes(s));
     });
-  }, [state.players, search, platformFilter, statusFilter]);
+  }, [state.players, search]);
 
   const handleSavePlayer = (playerData: Omit<Player, 'id' | 'created_at'>) => {
     if (editingPlayer) {
@@ -58,7 +52,7 @@ const Players: React.FC = () => {
     <div className="space-y-6 animate-fadeIn">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
-          <h1 className="font-display text-3xl">Players</h1>
+          <h1 className="font-display text-3xl">Players & Teams</h1>
           <Badge variant="active">{state.players.length}</Badge>
         </div>
         <button className="btn btn-primary" onClick={() => setShowAddForm(true)}>
@@ -67,55 +61,32 @@ const Players: React.FC = () => {
         </button>
       </div>
 
-      <div className="card grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
+      <div className="card p-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-          <Input 
+          <Input
             id="searchPlayers"
-            className="pl-9" 
-            placeholder="Search players..." 
+            className="pl-9"
+            placeholder="Search players or teams..."
             value={search}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
           />
         </div>
-        <Select 
-          id="platformFilter"
-          value={platformFilter} 
-          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setPlatformFilter(e.target.value)}
-          options={[
-            { value: 'all', label: 'All Platforms' },
-            { value: 'Mobile', label: 'Mobile' },
-            { value: 'PC', label: 'PC' },
-            { value: 'PS4', label: 'PS4' },
-            { value: 'PS5', label: 'PS5' },
-            { value: 'Xbox', label: 'Xbox' }
-          ]}
-        />
-        <Select 
-          id="statusFilter"
-          value={statusFilter} 
-          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setStatusFilter(e.target.value)}
-          options={[
-            { value: 'all', label: 'All Statuses' },
-            { value: 'active', label: 'Active' },
-            { value: 'inactive', label: 'Inactive' }
-          ]}
-        />
       </div>
 
       {filteredPlayers.length === 0 ? (
         <EmptyState
           title="No Players Found"
-          description="Try adjusting your filters or add a new player."
+          description="Add participants to get started with your tournament."
           icon={Users}
-          action={{ label: "Add Player", onClick: () => setShowAddForm(true) }}
+          action={{ label: 'Add Player', onClick: () => setShowAddForm(true) }}
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredPlayers.map(player => (
-            <PlayerCard 
-              key={player.id} 
-              player={player} 
+            <PlayerCard
+              key={player.id}
+              player={player}
               onEdit={() => setEditingPlayer(player)}
               onDelete={() => setDeletingPlayerId(player.id)}
             />

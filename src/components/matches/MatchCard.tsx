@@ -1,7 +1,6 @@
 import React from 'react';
 import type { Match, Player } from '../../lib/types';
-import { Badge } from '../ui/Badge';
-import { Trash2 } from 'lucide-react';
+import { Trash2, CheckCircle2 } from 'lucide-react';
 
 interface MatchCardProps {
   match: Match;
@@ -11,74 +10,81 @@ interface MatchCardProps {
   onDelete: () => void;
 }
 
-export const MatchCard: React.FC<MatchCardProps> = ({ match, player1, player2, onEnterScore, onDelete }) => {
+export const MatchCard: React.FC<MatchCardProps> = ({
+  match,
+  player1,
+  player2,
+  onEnterScore,
+  onDelete,
+}) => {
   const isCompleted = match.status === 'completed';
-  const showEnterScore = match.status === 'upcoming' || match.status === 'postponed';
 
   return (
-    <div className="card p-5 relative group">
-      <div className="flex justify-between items-start mb-4">
-        {match.round ? (
-          <span className="text-xs text-text-muted font-medium bg-surface px-2 py-1 rounded">{match.round}</span>
-        ) : <div />}
+    <div className="card p-5 relative group flex flex-col justify-between border border-border-light hover:border-accent/40 transition-colors">
+      <div className="flex justify-between items-center mb-4 border-b border-border-light/50 pb-2">
+        <span className="text-xs text-accent font-bold uppercase tracking-wider">
+          {match.round || match.match_code || 'Match'}
+        </span>
         <div className="flex items-center gap-2">
-          <Badge variant={match.status}>{match.status}</Badge>
-          <button 
+          {isCompleted && (
+            <span className="flex items-center gap-1 text-[11px] text-emerald-400 font-semibold">
+              <CheckCircle2 className="w-3 h-3" /> Done
+            </span>
+          )}
+          <button
             onClick={onDelete}
-            className="btn btn-ghost p-1.5 text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="btn btn-ghost p-1 text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
             title="Delete Match"
           >
-            <Trash2 size={16} />
+            <Trash2 size={15} />
           </button>
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-4 mb-6">
-        <div className="flex-1 text-right">
-          <span className={`font-display font-semibold text-lg ${isCompleted && (match.player1_score ?? 0) > (match.player2_score ?? 0) ? 'text-accent' : 'text-text'}`}>
-            {player1?.name || 'Unknown'}
-          </span>
+      <div className="flex items-center justify-between gap-4 my-3">
+        <div className="flex-1 text-right min-w-0">
+          <div className={`font-display font-bold text-base truncate ${
+            isCompleted && (match.player1_score ?? 0) > (match.player2_score ?? 0) ? 'text-accent' : 'text-text'
+          }`}>
+            {player1?.name || match.player1_placeholder || 'Player 1'}
+          </div>
+          {player1?.team && <div className="text-[10px] text-text-muted truncate">{player1.team}</div>}
         </div>
-        
-        <div className="shrink-0 flex flex-col items-center justify-center min-w-[80px]">
+
+        <div className="shrink-0 flex flex-col items-center justify-center min-w-[70px]">
           {isCompleted ? (
-            <div className="bg-surface px-4 py-2 rounded-lg font-display font-bold text-2xl tracking-widest border border-border-light shadow-inner">
+            <div className="bg-surface px-3 py-1.5 rounded-lg font-mono font-bold text-xl tracking-wider border border-border-light shadow-inner">
               {match.player1_score} - {match.player2_score}
             </div>
           ) : (
-            <span className="text-text-muted font-display font-bold text-xl italic opacity-50">VS</span>
+            <span className="text-text-muted font-display font-bold text-sm uppercase tracking-wider px-2 py-1 rounded bg-surface">
+              VS
+            </span>
+          )}
+          {isCompleted && match.penalty_player1_score !== undefined && (
+            <span className="text-[9px] text-amber-400 font-mono mt-1">
+              PEN: {match.penalty_player1_score}-{match.penalty_player2_score}
+            </span>
           )}
         </div>
-        
-        <div className="flex-1 text-left">
-          <span className={`font-display font-semibold text-lg ${isCompleted && (match.player2_score ?? 0) > (match.player1_score ?? 0) ? 'text-accent' : 'text-text'}`}>
-            {player2?.name || 'Unknown'}
-          </span>
+
+        <div className="flex-1 text-left min-w-0">
+          <div className={`font-display font-bold text-base truncate ${
+            isCompleted && (match.player2_score ?? 0) > (match.player1_score ?? 0) ? 'text-accent' : 'text-text'
+          }`}>
+            {player2?.name || match.player2_placeholder || 'Player 2'}
+          </div>
+          {player2?.team && <div className="text-[10px] text-text-muted truncate">{player2.team}</div>}
         </div>
       </div>
 
-      <div className="flex justify-between items-center pt-4 border-t border-border-light">
-        <div className="text-xs text-text-muted flex flex-col">
-          {match.scheduled_date ? (
-            <>
-              <span>{new Date(match.scheduled_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-              {match.scheduled_time && <span>{match.scheduled_time}</span>}
-            </>
-          ) : (
-            <span>Unscheduled</span>
-          )}
-        </div>
-        
-        {showEnterScore && (
-          <button onClick={onEnterScore} className="btn btn-primary text-sm py-1.5 px-4">
-            Enter Score
-          </button>
-        )}
-        {isCompleted && (
-          <button onClick={onEnterScore} className="btn btn-secondary text-xs py-1 px-3 opacity-0 group-hover:opacity-100 transition-opacity">
-            Edit Score
-          </button>
-        )}
+      <div className="flex justify-end items-center pt-3 border-t border-border-light/50 mt-2">
+        <button
+          onClick={onEnterScore}
+          className={`btn text-xs py-1.5 px-4 ${isCompleted ? 'btn-secondary' : 'btn-primary'}`}
+        >
+          {isCompleted ? 'Edit Score' : 'Enter Score'}
+        </button>
       </div>
     </div>
   );

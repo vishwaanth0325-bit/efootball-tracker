@@ -60,14 +60,12 @@ const Dashboard: React.FC = () => {
     .map(tp => state.players.find(p => p.id === tp.player_id)!)
     .filter(Boolean);
 
-  const activeMatches = state.matches.filter(m => m.tournament_id === activeTournamentId);
+   const activeMatches = state.matches.filter(m => m.tournament_id === activeTournamentId);
   const completedMatches = activeMatches.filter(m => m.status === 'completed');
-  const upcomingMatches = activeMatches
-    .filter(m => m.status === 'upcoming')
-    .sort((a, b) => (a.scheduled_date || '').localeCompare(b.scheduled_date || ''));
+  const upcomingMatches = activeMatches.filter(m => m.status === 'upcoming');
 
   const standings = computeStandings(activeTournamentId, tournamentPlayers, activeMatches, activeTournament);
-  const totalMatches = activeMatches.filter(m => m.status !== 'cancelled').length;
+  const totalMatches = activeMatches.length;
   const completionPct = totalMatches === 0 ? 0 : Math.round((completedMatches.length / totalMatches) * 100);
 
   const handleSaveScore = (p1Score: number, p2Score: number) => {

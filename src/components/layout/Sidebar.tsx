@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Trophy, Gamepad2, Calendar, BarChart3, Trash2 } from 'lucide-react';
+import { LayoutDashboard, Users, Trophy, Gamepad2, BarChart3, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useToast } from '../../context/ToastContext';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -42,10 +42,6 @@ export const Sidebar: React.FC = () => {
         <NavLink to="/matches" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
           <Gamepad2 size={18} />
           <span>Matches</span>
-        </NavLink>
-        <NavLink to="/schedule" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
-          <Calendar size={18} />
-          <span>Schedule</span>
         </NavLink>
         <NavLink to="/statistics" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
           <BarChart3 size={18} />

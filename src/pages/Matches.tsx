@@ -9,16 +9,15 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Plus, Search, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Search, Trophy } from 'lucide-react';
 
 const Matches: React.FC = () => {
   const { state, addMatch, updateMatch, deleteMatch } = useApp();
   const { showToast } = useToast();
 
   const [tournamentFilter, setTournamentFilter] = useState<string>(state.activeTournamentId || 'all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
-  
+
   const [showForm, setShowForm] = useState(false);
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
@@ -28,36 +27,32 @@ const Matches: React.FC = () => {
     return state.matches.filter(m => {
       const p1 = state.players.find(p => p.id === m.player1_id);
       const p2 = state.players.find(p => p.id === m.player2_id);
-      
+
       const searchLower = search.toLowerCase();
-      const matchesSearch = !search || 
-        (p1?.name.toLowerCase().includes(searchLower)) || 
-        (p2?.name.toLowerCase().includes(searchLower));
-        
+      const matchesSearch =
+        !search ||
+        (p1?.name.toLowerCase().includes(searchLower)) ||
+        (p2?.name.toLowerCase().includes(searchLower)) ||
+        (m.round && m.round.toLowerCase().includes(searchLower));
+
       const matchesTournament = tournamentFilter === 'all' || m.tournament_id === tournamentFilter;
-      const matchesStatus = statusFilter === 'all' || m.status === statusFilter;
-      
-      return matchesSearch && matchesTournament && matchesStatus;
+
+      return matchesSearch && matchesTournament;
     }).sort((a, b) => {
       if (a.status === 'upcoming' && b.status !== 'upcoming') return -1;
       if (a.status !== 'upcoming' && b.status === 'upcoming') return 1;
-      
-      if (a.status === 'upcoming') {
-        return new Date(a.scheduled_date || 0).getTime() - new Date(b.scheduled_date || 0).getTime();
-      }
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     });
-  }, [state.matches, state.players, search, tournamentFilter, statusFilter]);
+  }, [state.matches, state.players, search, tournamentFilter]);
 
   const stats = useMemo(() => {
-    let t = 0, c = 0, u = 0, p = 0;
+    let completed = 0;
+    let upcoming = 0;
     filteredMatches.forEach(m => {
-      t++;
-      if (m.status === 'completed') c++;
-      else if (m.status === 'upcoming') u++;
-      else if (m.status === 'postponed') p++;
+      if (m.status === 'completed') completed++;
+      else upcoming++;
     });
-    return { total: t, completed: c, upcoming: u, postponed: p };
+    return { total: filteredMatches.length, completed, upcoming };
   }, [filteredMatches]);
 
   const handleSaveMatch = (data: Partial<Match>) => {
@@ -72,14 +67,23 @@ const Matches: React.FC = () => {
     setEditingMatch(null);
   };
 
-  const handleSaveScore = (p1Score: number, p2Score: number) => {
+  const handleSaveScore = (
+    p1Score: number,
+    p2Score: number,
+    winnerId?: string,
+    penaltyP1?: number,
+    penaltyP2?: number
+  ) => {
     if (selectedMatch) {
       updateMatch({
         ...selectedMatch,
         status: 'completed',
         player1_score: p1Score,
         player2_score: p2Score,
-        updated_at: new Date().toISOString()
+        winner_id: winnerId,
+        penalty_player1_score: penaltyP1,
+        penalty_player2_score: penaltyP2,
+        updated_at: new Date().toISOString(),
       });
       showToast('Score saved', 'success');
       setSelectedMatch(null);
@@ -89,54 +93,43 @@ const Matches: React.FC = () => {
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="font-display text-3xl">Matches</h1>
+        <h1 className="font-display text-3xl">All Matches</h1>
         <button className="btn btn-primary" onClick={() => setShowForm(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Add Match
         </button>
       </div>
 
-      <div className="card grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
-        <Select 
+      <div className="card grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+        <Select
           id="tournamentFilter"
-          value={tournamentFilter} 
+          value={tournamentFilter}
           onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTournamentFilter(e.target.value)}
           options={[
             { value: 'all', label: 'All Tournaments' },
-            ...state.tournaments.map(t => ({ value: t.id, label: t.name }))
-          ]}
-        />
-        <Select 
-          id="statusFilter"
-          value={statusFilter} 
-          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setStatusFilter(e.target.value)}
-          options={[
-            { value: 'all', label: 'All Statuses' },
-            { value: 'upcoming', label: 'Upcoming' },
-            { value: 'completed', label: 'Completed' },
-            { value: 'postponed', label: 'Postponed' }
+            ...state.tournaments.map(t => ({ value: t.id, label: t.name })),
           ]}
         />
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-          <Input 
+          <Input
             id="searchMatches"
-            className="pl-9" 
-            placeholder="Search players..." 
+            className="pl-9"
+            placeholder="Search teams, players, or rounds..."
             value={search}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
           />
         </div>
       </div>
 
-      <div className="flex gap-4 mb-4 text-sm">
-        <span className="text-text-muted">Total: <strong className="text-text">{stats.total}</strong></span>
-        <span className="text-text-muted">Completed: <strong className="text-text">{stats.completed}</strong></span>
-        <span className="text-text-muted">Upcoming: <strong className="text-text">{stats.upcoming}</strong></span>
+      <div className="flex gap-6 text-xs text-text-muted">
+        <span>Total: <strong className="text-text">{stats.total}</strong></span>
+        <span>Completed: <strong className="text-emerald-400">{stats.completed}</strong></span>
+        <span>Upcoming: <strong className="text-accent">{stats.upcoming}</strong></span>
       </div>
 
       {filteredMatches.length === 0 ? (
-        <EmptyState title="No Matches Found" icon={CalendarIcon} />
+        <EmptyState title="No Matches Found" icon={Trophy} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredMatches.map(match => (
@@ -153,7 +146,7 @@ const Matches: React.FC = () => {
       )}
 
       {(showForm || !!editingMatch) && (
-        <MatchForm 
+        <MatchForm
           existingMatch={editingMatch || undefined}
           tournamentId={editingMatch ? editingMatch.tournament_id : state.activeTournamentId || ''}
           players={state.players}

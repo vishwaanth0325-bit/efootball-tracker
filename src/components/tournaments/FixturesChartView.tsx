@@ -68,18 +68,22 @@ export const FixturesChartView: React.FC<FixturesChartViewProps> = ({
           maxMatchGoals = matchTotal;
         }
 
-        const p1Data = teamGoalsMap.get(m.player1_id);
-        if (p1Data) {
-          p1Data.goalsFor += m.player1_score;
-          p1Data.goalsAgainst += m.player2_score;
-          p1Data.played++;
+        if (m.player1_id) {
+          const p1Data = teamGoalsMap.get(m.player1_id);
+          if (p1Data) {
+            p1Data.goalsFor += m.player1_score;
+            p1Data.goalsAgainst += m.player2_score;
+            p1Data.played++;
+          }
         }
 
-        const p2Data = teamGoalsMap.get(m.player2_id);
-        if (p2Data) {
-          p2Data.goalsFor += m.player2_score;
-          p2Data.goalsAgainst += m.player1_score;
-          p2Data.played++;
+        if (m.player2_id) {
+          const p2Data = teamGoalsMap.get(m.player2_id);
+          if (p2Data) {
+            p2Data.goalsFor += m.player2_score;
+            p2Data.goalsAgainst += m.player1_score;
+            p2Data.played++;
+          }
         }
       }
     });

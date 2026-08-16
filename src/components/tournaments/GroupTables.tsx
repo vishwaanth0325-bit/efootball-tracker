@@ -1,87 +1,68 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { Player, Match, Tournament } from '../../lib/types';
-import { computeStandings } from '../../lib/calculations';
-import { LeaderboardTable } from '../dashboard/LeaderboardTable';
+import { computeAllGroupSummaries, type GroupSummary } from '../../lib/tournamentEngine';
 import { ScoreEntry } from '../matches/ScoreEntry';
-import { Users, Calendar } from 'lucide-react';
+import { LeaderboardTable } from '../dashboard/LeaderboardTable';
+import {
+  Users,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  ArrowRightLeft,
+  Shield,
+} from 'lucide-react';
 
 interface GroupTablesProps {
   tournament: Tournament;
   tournamentPlayers: Player[];
   matches: Match[];
+  groupAssignments?: Record<string, string[]>;
   onUpdateMatch: (match: Match) => void;
-}
-
-export interface GroupData {
-  groupName: string;
-  players: Player[];
-  matches: Match[];
+  onReassignGroup?: (playerId: string, targetGroup: string) => void;
 }
 
 export const GroupTables: React.FC<GroupTablesProps> = ({
   tournament,
   tournamentPlayers,
   matches,
+  groupAssignments,
   onUpdateMatch,
+  onReassignGroup,
 }) => {
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [activeGroupTab, setActiveGroupTab] = useState<string>('all');
+  const [reassignPlayerId, setReassignPlayerId] = useState<string | null>(null);
 
-  // Detect group names from match rounds (e.g. "Group A - Round 1")
-  const detectedGroups = new Set<string>();
-  matches.forEach(m => {
-    if (m.round && m.round.toLowerCase().startsWith('group')) {
-      const gName = m.round.split(' - ')[0].trim();
-      if (gName) detectedGroups.add(gName);
-    }
-  });
-
-  const groupNames = Array.from(detectedGroups).sort();
-
-  // If no group matches generated yet, split players evenly into Group A and Group B
-  let groups: GroupData[] = [];
-
-  if (groupNames.length > 0) {
-    groups = groupNames.map(gName => {
-      const groupMatches = matches.filter(m => m.round && m.round.startsWith(gName));
-      const playerIdsInGroup = new Set<string>();
-      groupMatches.forEach(m => {
-        playerIdsInGroup.add(m.player1_id);
-        playerIdsInGroup.add(m.player2_id);
-      });
-      const groupPlayers = tournamentPlayers.filter(p => playerIdsInGroup.has(p.id));
-      return {
-        groupName: gName,
-        players: groupPlayers,
-        matches: groupMatches,
-      };
-    });
-  } else {
-    // Fallback: Partition players 50/50 into Group A and Group B
-    const half = Math.ceil(tournamentPlayers.length / 2);
-    const groupAPlayers = tournamentPlayers.slice(0, half);
-    const groupBPlayers = tournamentPlayers.slice(half);
-
-    groups = [
-      { groupName: 'Group A', players: groupAPlayers, matches: [] },
-      { groupName: 'Group B', players: groupBPlayers, matches: [] },
-    ];
-  }
+  // Compute live group summaries dynamically from latest matches and players
+  const groupSummaries: GroupSummary[] = useMemo(() => {
+    return computeAllGroupSummaries(tournament, tournamentPlayers, matches, groupAssignments);
+  }, [tournament, tournamentPlayers, matches, groupAssignments]);
 
   const displayedGroups = activeGroupTab === 'all'
-    ? groups
-    : groups.filter(g => g.groupName === activeGroupTab);
+    ? groupSummaries
+    : groupSummaries.filter(g => g.groupName === activeGroupTab);
+
+  const allGroupsComplete = groupSummaries.length > 0 && groupSummaries.every(g => g.isComplete);
 
   return (
     <div className="space-y-8 animate-fadeIn">
-      {/* Group Navigation Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border-light pb-3">
+      {/* Top Header & Group Filter Switcher */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border-light pb-4">
         <div>
-          <h3 className="font-display text-2xl font-bold text-text">Group Stages</h3>
-          <p className="text-xs text-text-muted">Standings, participants, and intra-group fixtures per group</p>
+          <div className="flex items-center gap-2">
+            <h3 className="font-display text-2xl font-bold text-text">Group Stages</h3>
+            {allGroupsComplete && (
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> All Groups Complete
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-text-muted mt-0.5">
+            Single round-robin group stage. Top 2 players from each group qualify for the Knockout Stage.
+          </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-1.5">
           <button
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
               activeGroupTab === 'all'
@@ -90,19 +71,20 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
             }`}
             onClick={() => setActiveGroupTab('all')}
           >
-            All Groups ({groups.length})
+            All Groups ({groupSummaries.length})
           </button>
-          {groups.map(g => (
+          {groupSummaries.map(g => (
             <button
               key={g.groupName}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
                 activeGroupTab === g.groupName
                   ? 'bg-accent text-bg shadow-sm'
                   : 'bg-surface hover:bg-surface-hover text-text-muted hover:text-text'
               }`}
               onClick={() => setActiveGroupTab(g.groupName)}
             >
-              {g.groupName}
+              <span>{g.groupName}</span>
+              {g.isComplete && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
             </button>
           ))}
         </div>
@@ -110,115 +92,152 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
 
       {/* Grid of Groups */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        {displayedGroups.map(group => {
-          const groupStandings = computeStandings(
-            tournament.id,
-            group.players,
-            group.matches,
-            tournament
-          );
-
-          return (
-            <div
-              key={group.groupName}
-              className="card p-5 space-y-6 border border-border-light bg-surface/80 relative overflow-hidden"
-            >
-              {/* Group Header */}
-              <div className="flex items-center justify-between border-b border-border-light pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/40 flex items-center justify-center font-display font-bold text-accent text-lg">
-                    {group.groupName.replace('Group ', '')}
-                  </div>
-                  <div>
+        {displayedGroups.map(group => (
+          <div
+            key={group.groupName}
+            className="card p-5 space-y-6 border border-border-light bg-surface/80 relative overflow-hidden"
+          >
+            {/* Group Header */}
+            <div className="flex items-center justify-between border-b border-border-light pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-accent/15 border border-accent/40 flex items-center justify-center font-display font-bold text-accent text-lg">
+                  {group.groupName.replace('Group ', '')}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
                     <h4 className="font-display text-xl font-bold text-text">{group.groupName}</h4>
-                    <span className="text-xs text-text-muted">
-                      {group.players.length} Teams • {group.matches.length} Fixtures
-                    </span>
+                    {group.isComplete ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">
+                        Finished
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/20 text-amber-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> {group.completedMatches}/{group.totalMatches} Done
+                      </span>
+                    )}
                   </div>
+                  <span className="text-xs text-text-muted">
+                    {group.players.length} Teams • {group.totalMatches} Fixtures
+                  </span>
                 </div>
               </div>
+            </div>
 
-              {/* Group Standings Table */}
-              <div className="space-y-2">
-                <h5 className="text-xs font-bold uppercase tracking-wider text-accent flex items-center gap-1.5">
-                  <span>Standings Table</span>
-                </h5>
-                <div className="rounded-xl border border-border-light overflow-hidden bg-bg/50">
-                  {group.players.length === 0 ? (
-                    <p className="text-xs text-text-muted p-4 text-center">No teams in this group yet.</p>
-                  ) : (
-                    <LeaderboardTable rows={groupStandings} />
-                  )}
-                </div>
+            {/* Group Standings Table */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold uppercase tracking-wider text-accent">Standings Table</span>
+                <span className="text-text-muted text-[11px]">Top 2 Advance</span>
               </div>
 
-              {/* Group Teams List */}
-              <div className="space-y-2">
-                <h5 className="text-xs font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
+              <div className="rounded-xl border border-border-light overflow-hidden bg-bg/50">
+                {group.players.length === 0 ? (
+                  <p className="text-xs text-text-muted p-4 text-center">No teams assigned to this group yet.</p>
+                ) : (
+                  <LeaderboardTable rows={group.standings} />
+                )}
+              </div>
+            </div>
+
+            {/* Group Teams List */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5 text-accent" />
                   <span>Assigned Teams ({group.players.length})</span>
-                </h5>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {group.players.map((player, idx) => (
-                    <div
-                      key={player.id}
-                      className="p-2.5 rounded-lg bg-surface border border-border-light flex items-center gap-3"
-                    >
-                      <div className="w-7 h-7 rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center font-bold text-xs text-accent shrink-0">
-                        {idx + 1}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-semibold text-xs text-text truncate">{player.name}</div>
-                        <div className="text-[10px] text-text-muted truncate">
-                          @{player.efootball_username} {player.team ? `• ${player.team}` : ''}
-                        </div>
-                      </div>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-hover font-mono text-text-muted">
-                        {player.platform}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                </span>
               </div>
 
-              {/* Group Recent & Upcoming Matches */}
-              {group.matches.length > 0 && (
-                <div className="space-y-2 pt-2 border-t border-border-light">
-                  <h5 className="text-xs font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {group.players.map((player, idx) => {
+                  const isTop2 = idx < 2 && group.standings.findIndex(s => s.player.id === player.id) < 2;
+                  return (
+                    <div
+                      key={player.id}
+                      className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-colors ${
+                        isTop2 && group.isComplete
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-text'
+                          : 'bg-surface border-border-light text-text'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-surface-hover border border-border-light flex items-center justify-center font-bold text-xs text-accent shrink-0">
+                          {idx + 1}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-xs text-text truncate">{player.name}</div>
+                          {player.team && (
+                            <div className="text-[10px] text-text-muted truncate flex items-center gap-1">
+                              <Shield className="w-2.5 h-2.5 text-accent" />
+                              <span>{player.team}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Reassign Button if provided */}
+                      {onReassignGroup && (
+                        <button
+                          onClick={() => setReassignPlayerId(player.id)}
+                          className="btn btn-ghost p-1 text-text-muted hover:text-accent"
+                          title="Move to another group"
+                        >
+                          <ArrowRightLeft size={13} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Group Fixtures List */}
+            {group.matches.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-border-light">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-accent" />
                     <span>Group Fixtures ({group.matches.length})</span>
-                  </h5>
-                  <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
-                    {group.matches.map(m => {
-                      const p1 = group.players.find(p => p.id === m.player1_id) || tournamentPlayers.find(p => p.id === m.player1_id);
-                      const p2 = group.players.find(p => p.id === m.player2_id) || tournamentPlayers.find(p => p.id === m.player2_id);
-                      const isComplete = m.status === 'completed';
-
-                      return (
-                        <div
-                          key={m.id}
-                          className="p-2.5 rounded-lg bg-surface border border-border-light flex items-center justify-between gap-2 text-xs"
-                        >
-                          <div className="flex-1 text-right font-medium truncate">{p1?.name || 'Player 1'}</div>
-                          <div className="px-2 py-0.5 rounded bg-bg font-mono font-bold shrink-0">
-                            {isComplete ? `${m.player1_score} - ${m.player2_score}` : 'vs'}
-                          </div>
-                          <div className="flex-1 text-left font-medium truncate">{p2?.name || 'Player 2'}</div>
-                          <button
-                            onClick={() => setSelectedMatch(m)}
-                            className="btn btn-ghost text-[11px] py-1 px-2 text-accent hover:underline shrink-0"
-                          >
-                            {isComplete ? 'Edit' : 'Score'}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  </span>
+                  <span className="text-[11px] text-text-muted font-mono">
+                    {group.completedMatches} / {group.totalMatches} Completed
+                  </span>
                 </div>
-              )}
-            </div>
-          );
-        })}
+
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                  {group.matches.map(m => {
+                    const p1 = group.players.find(p => p.id === m.player1_id) || tournamentPlayers.find(p => p.id === m.player1_id);
+                    const p2 = group.players.find(p => p.id === m.player2_id) || tournamentPlayers.find(p => p.id === m.player2_id);
+                    const isComplete = m.status === 'completed';
+
+                    return (
+                      <div
+                        key={m.id}
+                        className="p-2.5 rounded-xl bg-surface border border-border-light flex items-center justify-between gap-2 text-xs hover:border-accent/40 transition-colors"
+                      >
+                        <div className="flex-1 text-right font-semibold truncate">{p1?.name || 'Player 1'}</div>
+                        <div className="px-2.5 py-1 rounded-lg bg-bg font-mono font-bold shrink-0 border border-border-light/60">
+                          {isComplete ? (
+                            <span className="text-text font-bold">{m.player1_score} - {m.player2_score}</span>
+                          ) : (
+                            <span className="text-text-muted uppercase text-[10px]">VS</span>
+                          )}
+                        </div>
+                        <div className="flex-1 text-left font-semibold truncate">{p2?.name || 'Player 2'}</div>
+                        <button
+                          onClick={() => setSelectedMatch(m)}
+                          className={`btn text-[11px] py-1 px-2.5 shrink-0 ${isComplete ? 'btn-secondary' : 'btn-primary'}`}
+                        >
+                          {isComplete ? 'Edit' : 'Score'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* Score Entry Modal for Group Matches */}
@@ -239,6 +258,37 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
           }}
           onClose={() => setSelectedMatch(null)}
         />
+      )}
+
+      {/* Reassign Player Group Modal */}
+      {reassignPlayerId && onReassignGroup && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="card max-w-sm w-full p-6 space-y-4 border border-border-light bg-surface animate-fadeIn">
+            <h4 className="font-display font-bold text-lg text-text">Reassign Group</h4>
+            <p className="text-xs text-text-muted">
+              Select the new group for {tournamentPlayers.find(p => p.id === reassignPlayerId)?.name}:
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {groupSummaries.map(g => (
+                <button
+                  key={g.groupName}
+                  onClick={() => {
+                    onReassignGroup(reassignPlayerId, g.groupName);
+                    setReassignPlayerId(null);
+                  }}
+                  className="btn btn-secondary text-xs py-2"
+                >
+                  {g.groupName}
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-end pt-2">
+              <button className="btn btn-ghost text-xs" onClick={() => setReassignPlayerId(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

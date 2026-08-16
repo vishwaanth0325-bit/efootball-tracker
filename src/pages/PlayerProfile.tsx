@@ -111,12 +111,9 @@ const PlayerProfile: React.FC = () => {
         <div>
           <h1 className="font-display text-3xl mb-1">{player.name}</h1>
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-muted text-sm">@{player.efootball_username}</span>
-            <Badge variant="default">{player.platform}</Badge>
-            {player.team && <span className="text-muted text-sm">{player.team}</span>}
-            <Badge variant={player.status}>{player.status}</Badge>
+            {player.efootball_username && <span className="text-muted text-sm">@{player.efootball_username}</span>}
+            {player.team && <Badge variant="default">{player.team}</Badge>}
           </div>
-          {player.notes && <p className="text-muted text-sm mt-2">{player.notes}</p>}
         </div>
       </div>
 

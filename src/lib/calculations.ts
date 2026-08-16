@@ -10,12 +10,9 @@ import type {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Get the sort key for a match (prefer scheduled_date, fallback to created_at) */
+/** Get the sort key for a match */
 function matchSortKey(m: Match): string {
-  if (m.scheduled_date) {
-    return m.scheduled_date + (m.scheduled_time ? `T${m.scheduled_time}` : 'T00:00');
-  }
-  return m.created_at;
+  return m.created_at || '';
 }
 
 /** Completed matches involving a specific player, optionally in a specific tournament */

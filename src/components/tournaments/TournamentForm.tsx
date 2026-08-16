@@ -25,14 +25,11 @@ export const TournamentForm: React.FC<TournamentFormProps> = ({
   const [name, setName] = useState(tournament?.name || '');
   const [season, setSeason] = useState(tournament?.season || 'Season 1');
   const [description, setDescription] = useState(tournament?.description || '');
-  const [format, setFormat] = useState<TournamentFormat>(tournament?.format || 'league');
-  const [status, setStatus] = useState<TournamentStatus>(tournament?.status || 'upcoming');
-  const [startDate, setStartDate] = useState(tournament?.start_date || '');
-  const [endDate, setEndDate] = useState(tournament?.end_date || '');
-
-  const [pointsWin, setPointsWin] = useState(tournament?.points_win ?? 3);
-  const [pointsDraw, setPointsDraw] = useState(tournament?.points_draw ?? 1);
-  const [pointsLoss, setPointsLoss] = useState(tournament?.points_loss ?? 0);
+  const [format, setFormat] = useState<TournamentFormat>(tournament?.format || 'group_knockout');
+  const status: TournamentStatus = tournament?.status || 'upcoming';
+  const pointsWin = tournament?.points_win ?? 3;
+  const pointsDraw = tournament?.points_draw ?? 1;
+  const pointsLoss = tournament?.points_loss ?? 0;
 
   // Participant selection for new tournaments
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>(
@@ -60,8 +57,6 @@ export const TournamentForm: React.FC<TournamentFormProps> = ({
         description: description.trim() || undefined,
         format,
         status,
-        start_date: startDate || undefined,
-        end_date: endDate || undefined,
         points_win: pointsWin,
         points_draw: pointsDraw,
         points_loss: pointsLoss,
@@ -72,117 +67,106 @@ export const TournamentForm: React.FC<TournamentFormProps> = ({
   };
 
   return (
-    <Modal isOpen={true} onClose={onClose} title={tournament ? 'Edit Tournament' : 'Create Tournament'}>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 max-h-[80vh] overflow-y-auto px-1">
-        <Input id="tName" label="Tournament Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Champions League 2026" required />
-        <Input id="tSeason" label="Season / Edition" value={season} onChange={(e) => setSeason(e.target.value)} required />
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title={tournament ? 'Edit Tournament' : 'Create World Cup / Tournament'}
+      maxWidth="max-w-xl"
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Input
+          id="tName"
+          label="Tournament Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          placeholder="e.g. World Cup 2026, Champions League"
+        />
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            id="tSeason"
+            label="Season / Edition"
+            value={season}
+            onChange={(e) => setSeason(e.target.value)}
+            required
+            placeholder="e.g. Season 1"
+          />
+
           <Select
             id="tFormat"
-            label="Format"
+            label="Format Structure"
             value={format}
             onChange={(e) => setFormat(e.target.value as TournamentFormat)}
             options={[
-              { value: 'league', label: 'League (Round Robin)' },
-              { value: 'knockout', label: 'Knockout (Bracket / Cup)' },
-              { value: 'groups', label: 'Groups (Group Stages)' },
-              { value: 'group_knockout', label: 'Groups + Knockout' },
-            ]}
-          />
-          <Select
-            id="tStatus"
-            label="Status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value as TournamentStatus)}
-            options={[
-              { value: 'upcoming', label: 'Upcoming' },
-              { value: 'ongoing', label: 'Ongoing' },
-              { value: 'completed', label: 'Completed' },
+              { value: 'group_knockout', label: 'World Cup (Group Stage → Knockout Stage)' },
+              { value: 'groups', label: 'Groups Only' },
+              { value: 'knockout', label: 'Knockout Bracket' },
+              { value: 'league', label: 'League / Round Robin' },
             ]}
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Input id="tStartDate" type="date" label="Start Date (Optional)" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          <Input id="tEndDate" type="date" label="End Date (Optional)" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-        </div>
+        <Input
+          id="tDescription"
+          label="Description (Optional)"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Tournament rules, prize pool, or notes..."
+        />
 
-        {/* Participant Selection for New Tournaments */}
+        {/* Participant Selection */}
         {!tournament && availablePlayers.length > 0 && (
-          <div className="p-4 bg-surface-hover border border-border-light rounded-xl space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-accent" />
-                <span className="font-semibold text-sm">Select Participants ({selectedPlayerIds.length} of {availablePlayers.length})</span>
-              </div>
-              <div className="flex gap-2 text-xs">
-                <button type="button" onClick={selectAll} className="text-accent hover:underline">Select All</button>
-                <span className="text-text-muted">•</span>
-                <button type="button" onClick={deselectAll} className="text-text-muted hover:underline">Clear</button>
+          <div className="space-y-2 pt-2 border-t border-border-light">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-semibold text-text flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-accent" />
+                Select Participants ({selectedPlayerIds.length}/{availablePlayers.length})
+              </span>
+              <div className="flex gap-2 text-accent text-[11px]">
+                <button type="button" onClick={selectAll} className="hover:underline">Select All</button>
+                <span>•</span>
+                <button type="button" onClick={deselectAll} className="hover:underline">Clear</button>
               </div>
             </div>
 
-            <div className="max-h-36 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 pr-1">
-              {availablePlayers.map(p => {
-                const isSelected = selectedPlayerIds.includes(p.id);
+            <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 border border-border-light rounded-xl p-2 bg-surface/50">
+              {availablePlayers.map(player => {
+                const isSelected = selectedPlayerIds.includes(player.id);
                 return (
                   <button
-                    key={p.id}
+                    key={player.id}
                     type="button"
-                    onClick={() => togglePlayer(p.id)}
-                    className={`flex items-center gap-2 p-2 rounded-lg text-left text-xs transition-colors border ${
+                    onClick={() => togglePlayer(player.id)}
+                    className={`w-full flex items-center justify-between p-2 rounded-lg text-xs text-left transition-colors ${
                       isSelected
-                        ? 'bg-accent/10 border-accent/40 text-text'
-                        : 'bg-surface border-border-light text-text-muted hover:border-text-muted'
+                        ? 'bg-accent/15 border border-accent/40 text-text font-medium'
+                        : 'bg-surface hover:bg-surface-hover text-text-muted'
                     }`}
                   >
-                    {isSelected ? (
-                      <CheckSquare className="w-4 h-4 text-accent shrink-0" />
-                    ) : (
-                      <Square className="w-4 h-4 text-text-muted shrink-0" />
-                    )}
-                    <span className="truncate font-medium">{p.name}</span>
+                    <div className="flex items-center gap-2 truncate">
+                      {isSelected ? <CheckSquare className="w-3.5 h-3.5 text-accent shrink-0" /> : <Square className="w-3.5 h-3.5 text-text-muted shrink-0" />}
+                      <span className="truncate">{player.name}</span>
+                    </div>
+                    {player.team && <span className="text-[10px] text-text-muted shrink-0">{player.team}</span>}
                   </button>
                 );
               })}
             </div>
 
-            {selectedPlayerIds.length >= 2 && (
-              <label className="flex items-center gap-2 text-xs text-text cursor-pointer pt-1">
-                <input
-                  type="checkbox"
-                  checked={autoGenerate}
-                  onChange={e => setAutoGenerate(e.target.checked)}
-                  className="rounded border-border-light text-accent focus:ring-accent"
-                />
-                Auto-generate initial match fixtures immediately
-              </label>
-            )}
+            <label className="flex items-center gap-2 pt-2 text-xs text-text cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoGenerate}
+                onChange={e => setAutoGenerate(e.target.checked)}
+                className="rounded border-border-light text-accent focus:ring-accent"
+              />
+              <span>Automatically generate group & match schedule immediately upon creation</span>
+            </label>
           </div>
         )}
 
-        <div className="p-3 bg-surface border border-border-light rounded-lg">
-          <h4 className="text-sm font-medium mb-3 text-text-muted">Points System</h4>
-          <div className="grid grid-cols-3 gap-3">
-            <Input id="pWin" type="number" label="Win" value={pointsWin} onChange={(e) => setPointsWin(Number(e.target.value))} required />
-            <Input id="pDraw" type="number" label="Draw" value={pointsDraw} onChange={(e) => setPointsDraw(Number(e.target.value))} required />
-            <Input id="pLoss" type="number" label="Loss" value={pointsLoss} onChange={(e) => setPointsLoss(Number(e.target.value))} required />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="tDesc" className="form-label">Description (Optional)</label>
-          <textarea
-            id="tDesc"
-            className="form-input min-h-[70px] resize-y"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Add notes, rules, or prizes..."
-          />
-        </div>
-
-        <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-border-light sticky bottom-0 bg-surface">
+        <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-border-light">
           <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
           <button type="submit" className="btn btn-primary" disabled={!name.trim() || !season.trim()}>
             {tournament ? 'Save Changes' : 'Create Tournament'}

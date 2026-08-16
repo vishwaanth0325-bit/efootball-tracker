@@ -132,7 +132,7 @@ const Tournaments: React.FC = () => {
       {(showForm || !!editingTournament) && (
         <TournamentForm
           tournament={editingTournament || undefined}
-          availablePlayers={state.players.filter(p => p.status === 'active')}
+          availablePlayers={state.players}
           onSubmit={handleSaveTournament}
           onClose={() => {
             setShowForm(false);

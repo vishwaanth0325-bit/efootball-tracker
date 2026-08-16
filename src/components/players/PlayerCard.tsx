@@ -1,8 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Player } from '../../lib/types';
-import { Pencil, Trash2 } from 'lucide-react';
-import { Badge } from '../ui/Badge';
+import { Pencil, Trash2, Shield } from 'lucide-react';
 
 interface PlayerCardProps {
   player: Player;
@@ -23,52 +22,43 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, onEdit, onDelete
   };
 
   return (
-    <div 
-      className="card card-hover p-5 cursor-pointer flex flex-col"
+    <div
+      className="card card-hover p-5 cursor-pointer flex flex-col justify-between"
       onClick={() => navigate(`/players/${player.id}`)}
     >
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-accent flex items-center justify-center text-bg font-display font-bold text-xl shrink-0">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-12 h-12 rounded-2xl bg-accent/15 border border-accent/40 flex items-center justify-center text-accent font-display font-bold text-xl shrink-0">
             {getInitials(player.name)}
           </div>
-          <div>
-            <h3 className="font-bold text-text text-lg">{player.name}</h3>
-            <p className="text-text-muted text-sm">@{player.efootball_username}</p>
+          <div className="min-w-0">
+            <h3 className="font-bold text-text text-base truncate">{player.name}</h3>
+            {player.team ? (
+              <p className="text-text-muted text-xs flex items-center gap-1 truncate">
+                <Shield className="w-3 h-3 text-accent shrink-0" />
+                <span>{player.team}</span>
+              </p>
+            ) : (
+              <p className="text-text-muted text-xs">Player</p>
+            )}
           </div>
         </div>
-        <Badge variant={player.status === 'active' ? 'active' : 'inactive'}>
-          {player.status}
-        </Badge>
       </div>
 
-      <div className="flex-1">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-xs text-text-muted bg-surface px-2 py-1 rounded">
-            {player.platform}
-          </span>
-          {player.team && (
-            <span className="text-xs text-text-muted bg-surface px-2 py-1 rounded truncate max-w-[120px]">
-              {player.team}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-4 pt-4 border-t border-border-light flex justify-end gap-2">
-        <button 
+      <div className="mt-4 pt-3 border-t border-border-light flex justify-end gap-2">
+        <button
           onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          className="btn btn-ghost p-2"
+          className="btn btn-ghost p-2 text-text-muted hover:text-text"
           title="Edit Player"
         >
-          <Pencil size={18} />
+          <Pencil size={16} />
         </button>
-        <button 
+        <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="btn btn-ghost p-2 text-red-500 hover:text-red-400"
+          className="btn btn-ghost p-2 text-red-500 hover:text-red-400 hover:bg-red-500/10"
           title="Delete Player"
         >
-          <Trash2 size={18} />
+          <Trash2 size={16} />
         </button>
       </div>
     </div>
