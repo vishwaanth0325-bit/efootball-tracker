@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useToast } from '../context/ToastContext';
 import type { Tournament } from '../lib/types';
@@ -6,14 +7,22 @@ import { TournamentCard } from '../components/tournaments/TournamentCard';
 import { TournamentForm } from '../components/tournaments/TournamentForm';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
+import { generateFixtures } from '../lib/fixtures';
 import { Plus, Trophy } from 'lucide-react';
 
 const Tournaments: React.FC = () => {
-  const { state, addTournament, updateTournament, deleteTournament, setActiveTournament } = useApp();
+  const navigate = useNavigate();
+  const {
+    state,
+    addTournament,
+    updateTournament,
+    deleteTournament,
+    setActiveTournament,
+    addMatches,
+  } = useApp();
   const { showToast } = useToast();
-  
+
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  
   const [showForm, setShowForm] = useState(false);
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -23,16 +32,34 @@ const Tournaments: React.FC = () => {
     return state.tournaments.filter(t => t.status === statusFilter);
   }, [state.tournaments, statusFilter]);
 
-  const handleSaveTournament = (data: Omit<Tournament, 'id' | 'created_at'>) => {
+  const handleSaveTournament = (
+    data: Omit<Tournament, 'id' | 'created_at'>,
+    selectedPlayerIds?: string[],
+    autoGenerateFixtures?: boolean
+  ) => {
     if (editingTournament) {
       updateTournament({ ...editingTournament, ...data });
       showToast('Tournament updated', 'success');
     } else {
-      const newTournament = addTournament(data);
+      const newTournament = addTournament(data, selectedPlayerIds);
       if (!state.activeTournamentId) {
         setActiveTournament(newTournament.id);
       }
-      showToast('Tournament created', 'success');
+
+      if (autoGenerateFixtures && selectedPlayerIds && selectedPlayerIds.length >= 2) {
+        const fixtures = generateFixtures(
+          newTournament.id,
+          selectedPlayerIds,
+          false,
+          [],
+          newTournament.format
+        );
+        if (fixtures.length > 0) {
+          addMatches(fixtures as any);
+        }
+      }
+
+      showToast('Tournament created successfully', 'success');
     }
     setShowForm(false);
     setEditingTournament(null);
@@ -63,8 +90,8 @@ const Tournaments: React.FC = () => {
           <button
             key={status}
             className={`px-4 py-2 text-sm font-medium rounded-t-lg capitalize transition-colors ${
-              statusFilter === status 
-                ? 'bg-surface-light text-text border-b-2 border-accent' 
+              statusFilter === status
+                ? 'bg-surface-light text-text border-b-2 border-accent'
                 : 'text-text-muted hover:text-text hover:bg-surface'
             }`}
             onClick={() => setStatusFilter(status)}
@@ -79,7 +106,7 @@ const Tournaments: React.FC = () => {
           title="No Tournaments Found"
           description="Create a new tournament to get started."
           icon={Trophy}
-          action={{ label: "Create Tournament", onClick: () => setShowForm(true) }}
+          action={{ label: 'Create Tournament', onClick: () => setShowForm(true) }}
         />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -96,9 +123,7 @@ const Tournaments: React.FC = () => {
                 setActiveTournament(tournament.id);
                 showToast(`${tournament.name} set as active`, 'success');
               }}
-              onClick={() => {
-                // Clicking could route to details if necessary, but card typically has links or actions itself
-              }}
+              onClick={() => navigate(`/tournaments/${tournament.id}`)}
             />
           ))}
         </div>
@@ -107,6 +132,7 @@ const Tournaments: React.FC = () => {
       {(showForm || !!editingTournament) && (
         <TournamentForm
           tournament={editingTournament || undefined}
+          availablePlayers={state.players.filter(p => p.status === 'active')}
           onSubmit={handleSaveTournament}
           onClose={() => {
             setShowForm(false);

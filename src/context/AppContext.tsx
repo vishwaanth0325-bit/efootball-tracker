@@ -22,11 +22,13 @@ type Action =
   | { type: 'UPDATE_TOURNAMENT'; payload: Tournament }
   | { type: 'DELETE_TOURNAMENT'; payload: string }
   | { type: 'ADD_TOURNAMENT_PLAYER'; payload: TournamentPlayer }
+  | { type: 'ADD_TOURNAMENT_PLAYERS'; payload: TournamentPlayer[] }
   | { type: 'REMOVE_TOURNAMENT_PLAYER'; payload: { tournament_id: string; player_id: string } }
   | { type: 'ADD_MATCH'; payload: Match }
   | { type: 'ADD_MATCHES'; payload: Match[] }
   | { type: 'UPDATE_MATCH'; payload: Match }
   | { type: 'DELETE_MATCH'; payload: string }
+  | { type: 'DELETE_TOURNAMENT_MATCHES'; payload: string }
   | { type: 'CLEAR_ALL' };
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
@@ -68,6 +70,8 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case 'ADD_TOURNAMENT_PLAYER':
       return { ...state, tournamentPlayers: [...state.tournamentPlayers, action.payload] };
+    case 'ADD_TOURNAMENT_PLAYERS':
+      return { ...state, tournamentPlayers: [...state.tournamentPlayers, ...action.payload] };
     case 'REMOVE_TOURNAMENT_PLAYER':
       return {
         ...state,
@@ -83,6 +87,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, matches: state.matches.map(m => m.id === action.payload.id ? action.payload : m) };
     case 'DELETE_MATCH':
       return { ...state, matches: state.matches.filter(m => m.id !== action.payload) };
+    case 'DELETE_TOURNAMENT_MATCHES':
+      return { ...state, matches: state.matches.filter(m => m.tournament_id !== action.payload) };
     case 'CLEAR_ALL':
       return { ...initialState, loading: false };
     default:
@@ -99,18 +105,20 @@ interface AppContextValue {
   updatePlayer: (player: Player) => void;
   deletePlayer: (id: string) => void;
   // Tournaments
-  addTournament: (t: Omit<Tournament, 'id' | 'created_at'>) => Tournament;
+  addTournament: (t: Omit<Tournament, 'id' | 'created_at'>, initialPlayerIds?: string[]) => Tournament;
   updateTournament: (t: Tournament) => void;
   deleteTournament: (id: string) => void;
   setActiveTournament: (id: string | null) => void;
   // Tournament Players
   addTournamentPlayer: (tournamentId: string, playerId: string) => void;
+  addTournamentPlayers: (tournamentId: string, playerIds: string[]) => void;
   removeTournamentPlayer: (tournamentId: string, playerId: string) => void;
   // Matches
   addMatch: (m: Omit<Match, 'id' | 'created_at' | 'updated_at'>) => Match;
   addMatches: (ms: Omit<Match, 'id' | 'created_at' | 'updated_at'>[]) => void;
   updateMatch: (m: Match) => void;
   deleteMatch: (id: string) => void;
+  deleteTournamentMatches: (tournamentId: string) => void;
   // Utilities
   clearAllData: () => void;
   reseedData: () => void;
@@ -127,33 +135,26 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  // Load from storage on mount
+  // Load from local storage on mount (without forcing test data)
   useEffect(() => {
     const saved = storage.loadAll();
+    dispatch({ type: 'LOAD', payload: saved });
 
-    // Seed if no data exists
-    if (!storage.isSeeded() || saved.players.length === 0) {
-      const seed = buildSeedData();
-      storage.savePlayers(seed.players);
-      storage.saveTournaments(seed.tournaments);
-      storage.saveTournamentPlayers(seed.tournamentPlayers);
-      storage.saveMatches(seed.matches);
-      storage.saveActiveTournamentId(seed.tournaments[0].id);
-      storage.markSeeded();
-
-      dispatch({
-        type: 'LOAD',
-        payload: {
-          players: seed.players,
-          tournaments: seed.tournaments,
-          tournamentPlayers: seed.tournamentPlayers,
-          matches: seed.matches,
-          activeTournamentId: seed.tournaments[0].id,
-        },
-      });
-    } else {
-      dispatch({ type: 'LOAD', payload: saved });
-    }
+    // If Supabase is connected, attempt remote sync in background
+    storage.fetchFromSupabase().then((remote) => {
+      if (remote && (remote.players.length > 0 || remote.tournaments.length > 0)) {
+        dispatch({
+          type: 'LOAD',
+          payload: {
+            players: remote.players,
+            tournaments: remote.tournaments,
+            tournamentPlayers: remote.tournamentPlayers,
+            matches: remote.matches,
+            activeTournamentId: remote.tournaments[0]?.id || null,
+          },
+        });
+      }
+    }).catch(console.error);
   }, []);
 
   // Persist to storage whenever state changes (after initial load)
@@ -182,9 +183,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ── Tournament Actions ───────────────────────────────────────────────────
-  const addTournament = useCallback((data: Omit<Tournament, 'id' | 'created_at'>): Tournament => {
+  const addTournament = useCallback((data: Omit<Tournament, 'id' | 'created_at'>, initialPlayerIds?: string[]): Tournament => {
     const tournament: Tournament = { ...data, id: crypto.randomUUID(), created_at: new Date().toISOString() };
     dispatch({ type: 'ADD_TOURNAMENT', payload: tournament });
+
+    if (initialPlayerIds && initialPlayerIds.length > 0) {
+      const now = new Date().toISOString();
+      const tps: TournamentPlayer[] = initialPlayerIds.map(pid => ({
+        id: crypto.randomUUID(),
+        tournament_id: tournament.id,
+        player_id: pid,
+        created_at: now,
+      }));
+      dispatch({ type: 'ADD_TOURNAMENT_PLAYERS', payload: tps });
+    }
+
     return tournament;
   }, []);
 
@@ -209,6 +222,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       created_at: new Date().toISOString(),
     };
     dispatch({ type: 'ADD_TOURNAMENT_PLAYER', payload: tp });
+  }, []);
+
+  const addTournamentPlayers = useCallback((tournamentId: string, playerIds: string[]) => {
+    const now = new Date().toISOString();
+    const tps: TournamentPlayer[] = playerIds.map(pid => ({
+      id: crypto.randomUUID(),
+      tournament_id: tournamentId,
+      player_id: pid,
+      created_at: now,
+    }));
+    dispatch({ type: 'ADD_TOURNAMENT_PLAYERS', payload: tps });
   }, []);
 
   const removeTournamentPlayer = useCallback((tournament_id: string, player_id: string) => {
@@ -240,6 +264,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const deleteMatch = useCallback((id: string) => {
     dispatch({ type: 'DELETE_MATCH', payload: id });
+  }, []);
+
+  const deleteTournamentMatches = useCallback((tournamentId: string) => {
+    dispatch({ type: 'DELETE_TOURNAMENT_MATCHES', payload: tournamentId });
   }, []);
 
   // ── Utilities ────────────────────────────────────────────────────────────
@@ -289,8 +317,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     state,
     addPlayer, updatePlayer, deletePlayer,
     addTournament, updateTournament, deleteTournament, setActiveTournament,
-    addTournamentPlayer, removeTournamentPlayer,
-    addMatch, addMatches, updateMatch, deleteMatch,
+    addTournamentPlayer, addTournamentPlayers, removeTournamentPlayer,
+    addMatch, addMatches, updateMatch, deleteMatch, deleteTournamentMatches,
     clearAllData, reseedData,
     getActiveTournament, getTournamentPlayers, getTournamentMatches,
   };

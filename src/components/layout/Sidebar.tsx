@@ -1,13 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Trophy, Gamepad2, Calendar, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Users, Trophy, Gamepad2, Calendar, BarChart3, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useToast } from '../../context/ToastContext';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 export const Sidebar: React.FC = () => {
-  const { state } = useApp();
+  const { state, clearAllData } = useApp();
   const { activeTournamentId, tournaments } = state;
-  
+  const { showToast } = useToast();
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
   const activeTournament = tournaments.find((t: { id: string }) => t.id === activeTournamentId);
+
+  const handleClear = () => {
+    clearAllData();
+    showToast('All local and test data wiped cleanly', 'info');
+    setShowClearConfirm(false);
+  };
 
   return (
     <aside className="fixed left-0 top-0 h-full w-[240px] bg-surface border-r border-border hidden lg:flex flex-col z-40">
@@ -51,6 +61,26 @@ export const Sidebar: React.FC = () => {
           </p>
         </div>
       )}
+
+      <div className="p-4 border-t border-border-light">
+        <button
+          onClick={() => setShowClearConfirm(true)}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-text-muted hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/30 transition-colors"
+        >
+          <Trash2 size={14} />
+          <span>Clear All Data</span>
+        </button>
+      </div>
+
+      <ConfirmDialog
+        isOpen={showClearConfirm}
+        onCancel={() => setShowClearConfirm(false)}
+        onConfirm={handleClear}
+        title="Clear All Project Data"
+        message="Are you sure you want to completely erase all players, tournaments, and match records? This resets the tracker to a clean state."
+        confirmLabel="Wipe Everything"
+        danger={true}
+      />
     </aside>
   );
 };
