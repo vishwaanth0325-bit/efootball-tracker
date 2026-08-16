@@ -45,6 +45,7 @@ import {
   Edit3,
   SlidersHorizontal,
   Shield,
+  User,
 } from 'lucide-react';
 
 type Tab = 'overview' | 'groups' | 'knockout' | 'players' | 'fixtures' | 'standings';
@@ -806,19 +807,22 @@ const TournamentDetails: React.FC = () => {
                   </div>
 
                   <div className="flex items-center justify-between gap-2 text-sm font-semibold my-2">
-                    {/* Player 1 */}
+                    {/* Player / Team 1 */}
                     <div className="flex-1 text-right min-w-0">
                       {(() => {
                         const p1 = tournamentPlayers.find(p => p.id === match.player1_id);
                         return (
                           <div>
-                            <div className="truncate font-semibold text-text">
-                              {p1?.name || match.player1_placeholder || 'Player 1'}
+                            {/* HIGHLIGHTED TEAM NAME ON TOP */}
+                            <div className="truncate font-bold text-xs text-text flex items-center justify-end gap-1">
+                              <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                              <span className="truncate">{p1?.team || p1?.name || match.player1_placeholder || 'Team 1'}</span>
                             </div>
+                            {/* PLAYER NAME BELOW */}
                             {p1?.team && (
-                              <div className="text-[10px] text-text-muted font-normal truncate flex items-center justify-end gap-1">
-                                <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
-                                <span>{p1.team}</span>
+                              <div className="text-[10px] text-text-muted font-normal truncate flex items-center justify-end gap-0.5 mt-0.5">
+                                <User className="w-2.5 h-2.5 text-text-muted shrink-0" />
+                                <span>{p1.name}</span>
                               </div>
                             )}
                           </div>
@@ -830,19 +834,22 @@ const TournamentDetails: React.FC = () => {
                       {match.status === 'completed' ? `${match.player1_score} - ${match.player2_score}` : 'vs'}
                     </div>
 
-                    {/* Player 2 */}
+                    {/* Player / Team 2 */}
                     <div className="flex-1 text-left min-w-0">
                       {(() => {
                         const p2 = tournamentPlayers.find(p => p.id === match.player2_id);
                         return (
                           <div>
-                            <div className="truncate font-semibold text-text">
-                              {p2?.name || match.player2_placeholder || 'Player 2'}
+                            {/* HIGHLIGHTED TEAM NAME ON TOP */}
+                            <div className="truncate font-bold text-xs text-text flex items-center justify-start gap-1">
+                              <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                              <span className="truncate">{p2?.team || p2?.name || match.player2_placeholder || 'Team 2'}</span>
                             </div>
+                            {/* PLAYER NAME BELOW */}
                             {p2?.team && (
-                              <div className="text-[10px] text-text-muted font-normal truncate flex items-center justify-start gap-1">
-                                <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
-                                <span>{p2.team}</span>
+                              <div className="text-[10px] text-text-muted font-normal truncate flex items-center justify-start gap-0.5 mt-0.5">
+                                <User className="w-2.5 h-2.5 text-text-muted shrink-0" />
+                                <span>{p2.name}</span>
                               </div>
                             )}
                           </div>

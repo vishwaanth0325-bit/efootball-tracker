@@ -13,6 +13,7 @@ import {
   Shield,
   Edit3,
   SlidersHorizontal,
+  User,
 } from 'lucide-react';
 
 interface GroupTablesProps {
@@ -162,7 +163,7 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5 text-accent" />
-                  <span>Assigned Teams & Clubs ({group.players.length})</span>
+                  <span>Assigned Teams ({group.players.length})</span>
                 </span>
               </div>
 
@@ -191,14 +192,17 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-xs text-text truncate">{player.name}</div>
-                          {player.team ? (
-                            <div className="text-[10px] text-text-muted truncate flex items-center gap-1 font-medium">
-                              <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
-                              <span className="truncate">{player.team}</span>
+                          {/* HIGHLIGHTED TEAM NAME ON TOP */}
+                          <div className="font-bold text-xs text-text truncate flex items-center gap-1">
+                            <Shield className="w-3 h-3 text-accent shrink-0" />
+                            <span className="truncate">{player.team || player.name}</span>
+                          </div>
+                          {/* PLAYER NAME BELOW */}
+                          {player.team && (
+                            <div className="text-[10px] text-text-muted truncate flex items-center gap-0.5 mt-0.5">
+                              <User className="w-2.5 h-2.5 text-text-muted shrink-0" />
+                              <span className="truncate">{player.name}</span>
                             </div>
-                          ) : (
-                            <div className="text-[10px] text-text-muted">Player</div>
                           )}
                         </div>
                       </div>
@@ -225,7 +229,7 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-accent" />
-                    <span>Group Fixtures & Team Matchups ({group.matches.length})</span>
+                    <span>Group Fixtures ({group.matches.length})</span>
                   </span>
                   <span className="text-[11px] text-text-muted font-mono">
                     {group.completedMatches} / {group.totalMatches} Completed
@@ -243,13 +247,18 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
                         key={m.id}
                         className="p-2.5 rounded-xl bg-surface border border-border-light flex items-center justify-between gap-2 text-xs hover:border-accent/40 transition-colors"
                       >
-                        {/* Team 1 */}
+                        {/* Team 1 (Highlight Team on top, Player below) */}
                         <div className="flex-1 text-right min-w-0">
-                          <div className="font-semibold truncate">{p1?.name || 'Player 1'}</div>
+                          {/* HIGHLIGHTED TEAM NAME */}
+                          <div className="font-bold text-xs text-text truncate flex items-center justify-end gap-1">
+                            <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                            <span className="truncate">{p1?.team || p1?.name || 'Team 1'}</span>
+                          </div>
+                          {/* PLAYER NAME BELOW */}
                           {p1?.team && (
-                            <div className="text-[10px] text-text-muted truncate font-normal flex items-center justify-end gap-1">
-                              <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
-                              <span className="truncate">{p1.team}</span>
+                            <div className="text-[10px] text-text-muted truncate flex items-center justify-end gap-0.5 mt-0.5">
+                              <User className="w-2.5 h-2.5 text-text-muted shrink-0" />
+                              <span className="truncate">{p1.name}</span>
                             </div>
                           )}
                         </div>
@@ -263,13 +272,18 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
                           )}
                         </div>
 
-                        {/* Team 2 */}
+                        {/* Team 2 (Highlight Team on top, Player below) */}
                         <div className="flex-1 text-left min-w-0">
-                          <div className="font-semibold truncate">{p2?.name || 'Player 2'}</div>
+                          {/* HIGHLIGHTED TEAM NAME */}
+                          <div className="font-bold text-xs text-text truncate flex items-center justify-start gap-1">
+                            <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
+                            <span className="truncate">{p2?.team || p2?.name || 'Team 2'}</span>
+                          </div>
+                          {/* PLAYER NAME BELOW */}
                           {p2?.team && (
-                            <div className="text-[10px] text-text-muted truncate font-normal flex items-center justify-start gap-1">
-                              <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
-                              <span className="truncate">{p2.team}</span>
+                            <div className="text-[10px] text-text-muted truncate flex items-center justify-start gap-0.5 mt-0.5">
+                              <User className="w-2.5 h-2.5 text-text-muted shrink-0" />
+                              <span className="truncate">{p2.name}</span>
                             </div>
                           )}
                         </div>

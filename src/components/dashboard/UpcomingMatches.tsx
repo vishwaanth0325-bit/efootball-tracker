@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Match, Player } from '../../lib/types';
-import { Calendar, Shield } from 'lucide-react';
+import { Calendar, Shield, User } from 'lucide-react';
 import { EmptyState } from '../ui/EmptyState';
 
 interface UpcomingMatchesProps {
@@ -43,15 +43,18 @@ export const UpcomingMatches: React.FC<UpcomingMatchesProps> = ({ matches, playe
               className="flex items-center justify-between p-4 border-b border-border-light last:border-0 hover:bg-surface-hover cursor-pointer transition-colors"
             >
               <div className="flex items-center flex-1 gap-2 min-w-0">
-                {/* Player 1 */}
+                {/* Team / Player 1 */}
                 <div className="flex-1 text-right min-w-0">
-                  <div className="font-medium text-text truncate">
-                    {p1?.name || match.player1_placeholder || 'Player 1'}
+                  {/* HIGHLIGHTED TEAM ON TOP */}
+                  <div className="font-bold text-sm text-text truncate flex items-center justify-end gap-1">
+                    <Shield className="w-3 h-3 text-accent shrink-0" />
+                    <span className="truncate">{p1?.team || p1?.name || match.player1_placeholder || 'Team 1'}</span>
                   </div>
+                  {/* PLAYER NAME BELOW */}
                   {p1?.team && (
-                    <div className="text-[10px] text-text-muted truncate flex items-center justify-end gap-1">
-                      <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
-                      <span>{p1.team}</span>
+                    <div className="text-[10px] text-text-muted truncate flex items-center justify-end gap-0.5 mt-0.5">
+                      <User className="w-2.5 h-2.5 text-text-muted shrink-0" />
+                      <span>{p1.name}</span>
                     </div>
                   )}
                 </div>
@@ -60,15 +63,18 @@ export const UpcomingMatches: React.FC<UpcomingMatchesProps> = ({ matches, playe
                   VS
                 </span>
 
-                {/* Player 2 */}
+                {/* Team / Player 2 */}
                 <div className="flex-1 text-left min-w-0">
-                  <div className="font-medium text-text truncate">
-                    {p2?.name || match.player2_placeholder || 'Player 2'}
+                  {/* HIGHLIGHTED TEAM ON TOP */}
+                  <div className="font-bold text-sm text-text truncate flex items-center justify-start gap-1">
+                    <Shield className="w-3 h-3 text-accent shrink-0" />
+                    <span className="truncate">{p2?.team || p2?.name || match.player2_placeholder || 'Team 2'}</span>
                   </div>
+                  {/* PLAYER NAME BELOW */}
                   {p2?.team && (
-                    <div className="text-[10px] text-text-muted truncate flex items-center justify-start gap-1">
-                      <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
-                      <span>{p2.team}</span>
+                    <div className="text-[10px] text-text-muted truncate flex items-center justify-start gap-0.5 mt-0.5">
+                      <User className="w-2.5 h-2.5 text-text-muted shrink-0" />
+                      <span>{p2.name}</span>
                     </div>
                   )}
                 </div>

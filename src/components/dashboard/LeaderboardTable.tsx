@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { StandingRow } from '../../lib/types';
-import { Shield } from 'lucide-react';
+import { Shield, User } from 'lucide-react';
 
 interface LeaderboardTableProps {
   rows: StandingRow[];
@@ -18,7 +18,7 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ rows, limit 
         <thead>
           <tr>
             <th className="w-12 text-center">#</th>
-            <th className="text-left">Player & Team</th>
+            <th className="text-left">Team & Player</th>
             <th className="text-center w-12">P</th>
             <th className="text-center w-12">W</th>
             <th className="text-center w-12">D</th>
@@ -50,19 +50,24 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ rows, limit 
                       <img
                         src={row.player.profile_image}
                         alt=""
-                        className="w-7 h-7 rounded-lg object-cover border border-accent/30 shrink-0"
+                        className="w-8 h-8 rounded-lg object-cover border border-accent/30 shrink-0"
                       />
                     ) : (
-                      <div className="w-7 h-7 rounded-lg bg-surface-hover border border-border-light flex items-center justify-center font-bold text-xs text-accent shrink-0">
-                        {row.player.name.slice(0, 1)}
+                      <div className="w-8 h-8 rounded-lg bg-surface-hover border border-border-light flex items-center justify-center font-bold text-xs text-accent shrink-0">
+                        {row.player.team ? row.player.team.slice(0, 1) : row.player.name.slice(0, 1)}
                       </div>
                     )}
                     <div className="min-w-0">
-                      <div className="font-semibold text-text truncate">{row.player.name}</div>
+                      {/* HIGHLIGHTED TEAM NAME ON TOP */}
+                      <div className="font-bold text-sm text-text truncate flex items-center gap-1">
+                        <Shield className="w-3 h-3 text-accent shrink-0" />
+                        <span className="truncate">{row.player.team || row.player.name}</span>
+                      </div>
+                      {/* PLAYER NAME BELOW */}
                       {row.player.team && (
-                        <div className="text-[11px] text-text-muted truncate flex items-center gap-1 font-normal">
-                          <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
-                          <span>{row.player.team}</span>
+                        <div className="text-[11px] text-text-muted truncate flex items-center gap-0.5 mt-0.5">
+                          <User className="w-2.5 h-2.5 text-text-muted shrink-0" />
+                          <span>{row.player.name}</span>
                         </div>
                       )}
                     </div>

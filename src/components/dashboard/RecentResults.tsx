@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Match, Player } from '../../lib/types';
 import { Badge } from '../ui/Badge';
-import { Trophy, Shield } from 'lucide-react';
+import { Trophy, Shield, User } from 'lucide-react';
 import { EmptyState } from '../ui/EmptyState';
 
 interface RecentResultsProps {
@@ -58,16 +58,19 @@ export const RecentResults: React.FC<RecentResultsProps> = ({ matches, players, 
               </div>
 
               <div className="flex items-center justify-between gap-3">
-                {/* Player 1 */}
+                {/* Team / Player 1 */}
                 <div className="flex items-center gap-2 flex-1 justify-end min-w-0">
                   <div className="text-right min-w-0">
-                    <span className={`font-semibold block truncate ${p1Result === 'win' ? 'text-text' : 'text-text-muted'}`}>
-                      {p1?.name || match.player1_placeholder || 'Player 1'}
+                    {/* HIGHLIGHTED TEAM NAME */}
+                    <span className={`font-bold block truncate text-sm flex items-center justify-end gap-1 ${p1Result === 'win' ? 'text-text' : 'text-text-muted'}`}>
+                      <Shield className="w-3 h-3 text-accent shrink-0" />
+                      <span className="truncate">{p1?.team || p1?.name || match.player1_placeholder || 'Team 1'}</span>
                     </span>
+                    {/* PLAYER NAME BELOW */}
                     {p1?.team && (
-                      <span className="text-[10px] text-text-muted truncate flex items-center justify-end gap-1">
-                        <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
-                        <span>{p1.team}</span>
+                      <span className="text-[10px] text-text-muted truncate flex items-center justify-end gap-0.5 mt-0.5">
+                        <User className="w-2.5 h-2.5 text-text-muted shrink-0" />
+                        <span>{p1.name}</span>
                       </span>
                     )}
                   </div>
@@ -79,17 +82,20 @@ export const RecentResults: React.FC<RecentResultsProps> = ({ matches, players, 
                   {match.player1_score} - {match.player2_score}
                 </div>
 
-                {/* Player 2 */}
+                {/* Team / Player 2 */}
                 <div className="flex items-center gap-2 flex-1 justify-start min-w-0">
                   <Badge variant={p2Result}>{p2Result === 'win' ? 'W' : p2Result === 'draw' ? 'D' : 'L'}</Badge>
                   <div className="text-left min-w-0">
-                    <span className={`font-semibold block truncate ${p2Result === 'win' ? 'text-text' : 'text-text-muted'}`}>
-                      {p2?.name || match.player2_placeholder || 'Player 2'}
+                    {/* HIGHLIGHTED TEAM NAME */}
+                    <span className={`font-bold block truncate text-sm flex items-center justify-start gap-1 ${p2Result === 'win' ? 'text-text' : 'text-text-muted'}`}>
+                      <Shield className="w-3 h-3 text-accent shrink-0" />
+                      <span className="truncate">{p2?.team || p2?.name || match.player2_placeholder || 'Team 2'}</span>
                     </span>
+                    {/* PLAYER NAME BELOW */}
                     {p2?.team && (
-                      <span className="text-[10px] text-text-muted truncate flex items-center justify-start gap-1">
-                        <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
-                        <span>{p2.team}</span>
+                      <span className="text-[10px] text-text-muted truncate flex items-center justify-start gap-0.5 mt-0.5">
+                        <User className="w-2.5 h-2.5 text-text-muted shrink-0" />
+                        <span>{p2.name}</span>
                       </span>
                     )}
                   </div>

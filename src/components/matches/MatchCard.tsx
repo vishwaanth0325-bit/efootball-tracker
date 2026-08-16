@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Match, Player } from '../../lib/types';
-import { Trash2, CheckCircle2, Shield } from 'lucide-react';
+import { Trash2, CheckCircle2, Shield, User } from 'lucide-react';
 
 interface MatchCardProps {
   match: Match;
@@ -42,19 +42,22 @@ export const MatchCard: React.FC<MatchCardProps> = ({
       </div>
 
       <div className="flex items-center justify-between gap-4 my-3">
-        {/* Player 1 */}
+        {/* Team 1 (Highlight team on top, player name below) */}
         <div className="flex-1 text-right min-w-0">
           <div className="flex items-center justify-end gap-2">
             <div className="min-w-0">
-              <div className={`font-display font-bold text-base truncate ${
+              {/* HIGHLIGHTED TEAM NAME */}
+              <div className={`font-display font-bold text-base truncate flex items-center justify-end gap-1 ${
                 isCompleted && (match.player1_score ?? 0) > (match.player2_score ?? 0) ? 'text-accent' : 'text-text'
               }`}>
-                {player1?.name || match.player1_placeholder || 'Player 1'}
+                <Shield className="w-3.5 h-3.5 text-accent shrink-0" />
+                <span className="truncate">{player1?.team || player1?.name || match.player1_placeholder || 'Team 1'}</span>
               </div>
+              {/* PLAYER NAME BELOW */}
               {player1?.team && (
-                <div className="text-[11px] text-text-muted truncate flex items-center justify-end gap-1">
-                  <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
-                  <span>{player1.team}</span>
+                <div className="text-[11px] text-text-muted truncate flex items-center justify-end gap-0.5 mt-0.5">
+                  <User className="w-2.5 h-2.5 text-text-muted shrink-0" />
+                  <span>{player1.name}</span>
                 </div>
               )}
             </div>
@@ -86,7 +89,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({
           )}
         </div>
 
-        {/* Player 2 */}
+        {/* Team 2 (Highlight team on top, player name below) */}
         <div className="flex-1 text-left min-w-0">
           <div className="flex items-center justify-start gap-2">
             {player2?.profile_image && (
@@ -97,15 +100,18 @@ export const MatchCard: React.FC<MatchCardProps> = ({
               />
             )}
             <div className="min-w-0">
-              <div className={`font-display font-bold text-base truncate ${
+              {/* HIGHLIGHTED TEAM NAME */}
+              <div className={`font-display font-bold text-base truncate flex items-center justify-start gap-1 ${
                 isCompleted && (match.player2_score ?? 0) > (match.player1_score ?? 0) ? 'text-accent' : 'text-text'
               }`}>
-                {player2?.name || match.player2_placeholder || 'Player 2'}
+                <Shield className="w-3.5 h-3.5 text-accent shrink-0" />
+                <span className="truncate">{player2?.team || player2?.name || match.player2_placeholder || 'Team 2'}</span>
               </div>
+              {/* PLAYER NAME BELOW */}
               {player2?.team && (
-                <div className="text-[11px] text-text-muted truncate flex items-center justify-start gap-1">
-                  <Shield className="w-2.5 h-2.5 text-accent shrink-0" />
-                  <span>{player2.team}</span>
+                <div className="text-[11px] text-text-muted truncate flex items-center justify-start gap-0.5 mt-0.5">
+                  <User className="w-2.5 h-2.5 text-text-muted shrink-0" />
+                  <span>{player2.name}</span>
                 </div>
               )}
             </div>
