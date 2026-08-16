@@ -7,6 +7,7 @@ import { MatchForm } from '../components/matches/MatchForm';
 import { ScoreEntry } from '../components/matches/ScoreEntry';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
+import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Plus, Search, Trophy } from 'lucide-react';
@@ -22,6 +23,7 @@ const Matches: React.FC = () => {
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredMatches = useMemo(() => {
     return state.matches.filter(m => {
@@ -55,19 +57,30 @@ const Matches: React.FC = () => {
     return { total: filteredMatches.length, completed, upcoming };
   }, [filteredMatches]);
 
-  const handleSaveMatch = (data: Partial<Match>) => {
-    if (editingMatch) {
-      updateMatch({ ...editingMatch, ...data } as Match);
-      showToast('Match updated', 'success');
-    } else {
-      addMatch(data as any);
-      showToast('Match added', 'success');
+  const handleSaveMatch = async (data: Partial<Match>) => {
+    setIsSubmitting(true);
+    try {
+      if (editingMatch) {
+        const success = await updateMatch({ ...editingMatch, ...data } as Match);
+        if (success) {
+          showToast('Match updated', 'success');
+          setShowForm(false);
+          setEditingMatch(null);
+        }
+      } else {
+        const created = await addMatch(data as any);
+        if (created) {
+          showToast('Match added', 'success');
+          setShowForm(false);
+          setEditingMatch(null);
+        }
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-    setShowForm(false);
-    setEditingMatch(null);
   };
 
-  const handleSaveScore = (
+  const handleSaveScore = async (
     p1Score: number,
     p2Score: number,
     winnerId?: string,
@@ -75,26 +88,52 @@ const Matches: React.FC = () => {
     penaltyP2?: number
   ) => {
     if (selectedMatch) {
-      updateMatch({
-        ...selectedMatch,
-        status: 'completed',
-        player1_score: p1Score,
-        player2_score: p2Score,
-        winner_id: winnerId,
-        penalty_player1_score: penaltyP1,
-        penalty_player2_score: penaltyP2,
-        updated_at: new Date().toISOString(),
-      });
-      showToast('Score saved', 'success');
-      setSelectedMatch(null);
+      setIsSubmitting(true);
+      try {
+        const success = await updateMatch({
+          ...selectedMatch,
+          status: 'completed',
+          player1_score: p1Score,
+          player2_score: p2Score,
+          winner_id: winnerId,
+          penalty_player1_score: penaltyP1,
+          penalty_player2_score: penaltyP2,
+          updated_at: new Date().toISOString(),
+        });
+        if (success) {
+          showToast('Score saved', 'success');
+          setSelectedMatch(null);
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
+
+  const handleDeleteMatch = async () => {
+    if (deletingId) {
+      setIsSubmitting(true);
+      try {
+        const success = await deleteMatch(deletingId);
+        if (success) {
+          showToast('Match deleted', 'success');
+          setDeletingId(null);
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  if (state.loading) {
+    return <LoadingSpinner fullPage />;
+  }
 
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="font-display text-3xl">All Matches</h1>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+        <button className="btn btn-primary" onClick={() => setShowForm(true)} disabled={isSubmitting}>
           <Plus className="w-4 h-4 mr-2" />
           Add Match
         </button>
@@ -168,13 +207,7 @@ const Matches: React.FC = () => {
       <ConfirmDialog
         isOpen={!!deletingId}
         onCancel={() => setDeletingId(null)}
-        onConfirm={() => {
-          if (deletingId) {
-            deleteMatch(deletingId);
-            showToast('Match deleted', 'success');
-            setDeletingId(null);
-          }
-        }}
+        onConfirm={handleDeleteMatch}
         title="Delete Match"
         message="Are you sure you want to delete this match?"
         confirmLabel="Delete"

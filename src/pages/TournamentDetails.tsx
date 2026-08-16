@@ -24,6 +24,7 @@ import { FixturesChartView } from '../components/tournaments/FixturesChartView';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
+import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { Badge } from '../components/ui/Badge';
 import { Select } from '../components/ui/Select';
 import {
@@ -75,6 +76,11 @@ const TournamentDetails: React.FC = () => {
   const [showClearFixturesConfirm, setShowClearFixturesConfirm] = useState(false);
   const [matchToDelete, setMatchToDelete] = useState<string | null>(null);
   const [playerToRemove, setPlayerToRemove] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  if (state.loading) {
+    return <LoadingSpinner fullPage />;
+  }
 
   const tournament = state.tournaments.find(t => t.id === tournamentId);
 
@@ -101,7 +107,12 @@ const TournamentDetails: React.FC = () => {
 
   // Compute live group summaries
   const groupSummaries = useMemo(() => {
-    return computeAllGroupSummaries(tournament, tournamentPlayers, matches, tournament.group_config?.group_assignments ? { ...tournament.group_config.group_assignments as any } : undefined);
+    return computeAllGroupSummaries(
+      tournament,
+      tournamentPlayers,
+      matches,
+      tournament.group_config?.group_assignments ? { ...(tournament.group_config.group_assignments as any) } : undefined
+    );
   }, [tournament, tournamentPlayers, matches]);
 
   const allGroupsComplete = useMemo(() => checkAllGroupsComplete(groupSummaries), [groupSummaries]);
@@ -121,12 +132,19 @@ const TournamentDetails: React.FC = () => {
     setShowAddPlayer(true);
   };
 
-  const handleAddPlayersSubmit = () => {
+  const handleAddPlayersSubmit = async () => {
     if (selectedPlayerIdsToAdd.length > 0) {
-      addTournamentPlayers(tournament.id, selectedPlayerIdsToAdd);
-      showToast(`Added ${selectedPlayerIdsToAdd.length} player(s) to tournament`, 'success');
-      setSelectedPlayerIdsToAdd([]);
-      setShowAddPlayer(false);
+      setIsProcessing(true);
+      try {
+        const success = await addTournamentPlayers(tournament.id, selectedPlayerIdsToAdd);
+        if (success) {
+          showToast(`Added ${selectedPlayerIdsToAdd.length} player(s) to tournament`, 'success');
+          setSelectedPlayerIdsToAdd([]);
+          setShowAddPlayer(false);
+        }
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
@@ -136,45 +154,53 @@ const TournamentDetails: React.FC = () => {
   };
 
   // Generate Initial Group Fixtures or League/Knockout
-  const handleExecuteGenerateFixtures = () => {
+  const handleExecuteGenerateFixtures = async () => {
     const playerIds = tournamentPlayers.map(p => p.id);
     if (playerIds.length < 2) {
       showToast('Need at least 2 players to generate fixtures', 'error');
       return;
     }
 
-    if (genFormat === 'group_knockout' || genFormat === 'groups') {
-      // Group Stage generator (World Cup style)
-      const groupCount = Math.min(numGroups, Math.max(2, Math.floor(playerIds.length / 2)));
-      const groupAssignments = buildDefaultGroupAssignments(playerIds, groupCount);
-      const groupFixtures = generateAllGroupFixtures(tournament.id, groupAssignments);
+    setIsProcessing(true);
+    try {
+      if (genFormat === 'group_knockout' || genFormat === 'groups') {
+        // Group Stage generator (World Cup style)
+        const groupCount = Math.min(numGroups, Math.max(2, Math.floor(playerIds.length / 2)));
+        const groupAssignments = buildDefaultGroupAssignments(playerIds, groupCount);
+        const groupFixtures = generateAllGroupFixtures(tournament.id, groupAssignments);
 
-      if (groupFixtures.length > 0) {
-        addMatches(groupFixtures as any);
-        showToast(`Generated ${groupFixtures.length} group matches across ${groupCount} groups!`, 'success');
-        setActiveTab('groups');
+        if (groupFixtures.length > 0) {
+          const success = await addMatches(groupFixtures as any);
+          if (success) {
+            showToast(`Generated ${groupFixtures.length} group matches across ${groupCount} groups!`, 'success');
+            setActiveTab('groups');
+          }
+        }
+      } else {
+        // Standard League or Knockout
+        const newFixtures = generateFixtures(
+          tournament.id,
+          playerIds,
+          false,
+          matches,
+          genFormat,
+          numGroups
+        );
+        if (newFixtures.length > 0) {
+          const success = await addMatches(newFixtures as any);
+          if (success) {
+            showToast(`Created ${newFixtures.length} matches!`, 'success');
+          }
+        }
       }
-    } else {
-      // Standard League or Knockout
-      const newFixtures = generateFixtures(
-        tournament.id,
-        playerIds,
-        false,
-        matches,
-        genFormat,
-        numGroups
-      );
-      if (newFixtures.length > 0) {
-        addMatches(newFixtures as any);
-        showToast(`Created ${newFixtures.length} matches!`, 'success');
-      }
+    } finally {
+      setIsProcessing(false);
+      setShowGenerateModal(false);
     }
-
-    setShowGenerateModal(false);
   };
 
   // Generate World Cup Knockout Stage from Completed Groups
-  const handleGenerateKnockoutStage = () => {
+  const handleGenerateKnockoutStage = async () => {
     if (groupSummaries.length === 0) {
       showToast('No groups found to generate knockout bracket', 'error');
       return;
@@ -187,16 +213,23 @@ const TournamentDetails: React.FC = () => {
       return;
     }
 
-    const bracketMatches = generateKnockoutBracketMatches(tournament.id, groupSummaries);
-    if (bracketMatches.length > 0) {
-      addMatches(bracketMatches as any);
-      showToast(`🏆 World Cup Knockout bracket generated! (${bracketMatches.length} matches)`, 'success');
-      setActiveTab('knockout');
+    setIsProcessing(true);
+    try {
+      const bracketMatches = generateKnockoutBracketMatches(tournament.id, groupSummaries);
+      if (bracketMatches.length > 0) {
+        const success = await addMatches(bracketMatches as any);
+        if (success) {
+          showToast(`🏆 World Cup Knockout bracket generated! (${bracketMatches.length} matches)`, 'success');
+          setActiveTab('knockout');
+        }
+      }
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   // Handle saving knockout score with automated progression
-  const handleSaveKnockoutScore = (
+  const handleSaveKnockoutScore = async (
     match: Match,
     p1s: number,
     p2s: number,
@@ -215,20 +248,21 @@ const TournamentDetails: React.FC = () => {
       updated_at: new Date().toISOString(),
     };
 
-    updateMatch(updatedMatch);
+    const success = await updateMatch(updatedMatch);
+    if (!success) return;
 
     // If there's a winner, advance them to the downstream next_match_id!
     if (winnerId && match.next_match_id) {
       const advancedMatches = advanceKnockoutWinner(matches, match.id, winnerId);
       const downstreamMatch = advancedMatches.find(m => m.id === match.next_match_id);
       if (downstreamMatch) {
-        updateMatch(downstreamMatch);
+        await updateMatch(downstreamMatch);
       }
     }
 
     // If this was the final, mark tournament champion!
     if (match.round === 'Final' && winnerId) {
-      updateTournament({
+      await updateTournament({
         ...tournament,
         status: 'completed',
         champion_id: winnerId,
@@ -239,19 +273,33 @@ const TournamentDetails: React.FC = () => {
     }
   };
 
-  const handleClearAllFixtures = () => {
-    deleteTournamentMatches(tournament.id);
-    showToast('All tournament fixtures cleared', 'success');
-    setShowClearFixturesConfirm(false);
+  const handleClearAllFixtures = async () => {
+    setIsProcessing(true);
+    try {
+      const success = await deleteTournamentMatches(tournament.id);
+      if (success) {
+        showToast('All tournament fixtures cleared', 'success');
+        setShowClearFixturesConfirm(false);
+      }
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleSaveCustomMatch = (data: Partial<Match>) => {
-    addMatch({
-      ...data,
-      tournament_id: tournament.id,
-    } as any);
-    showToast('Match created successfully', 'success');
-    setShowCustomMatchModal(false);
+  const handleSaveCustomMatch = async (data: Partial<Match>) => {
+    setIsProcessing(true);
+    try {
+      const created = await addMatch({
+        ...data,
+        tournament_id: tournament.id,
+      } as any);
+      if (created) {
+        showToast('Match created successfully', 'success');
+        setShowCustomMatchModal(false);
+      }
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const tabs: { key: Tab; label: string; icon?: any }[] = [
@@ -291,7 +339,11 @@ const TournamentDetails: React.FC = () => {
 
           <div className="flex gap-2">
             {tournamentPlayers.length >= 2 && matches.length === 0 && (
-              <button className="btn btn-primary text-xs" onClick={handleOpenGenerateModal}>
+              <button
+                className="btn btn-primary text-xs"
+                onClick={handleOpenGenerateModal}
+                disabled={isProcessing}
+              >
                 <Sparkles className="w-3.5 h-3.5 mr-1" /> Generate Tournament Schedule
               </button>
             )}
@@ -406,11 +458,13 @@ const TournamentDetails: React.FC = () => {
 
           {/* Group Stage to Knockout Transition Banner */}
           {isGroupsOrWorldCup && groupMatches.length > 0 && knockoutMatches.length === 0 && (
-            <div className={`card p-6 border flex flex-col sm:flex-row items-center justify-between gap-4 ${
-              allGroupsComplete
-                ? 'bg-emerald-500/10 border-emerald-500/40'
-                : 'bg-surface border-border-light'
-            }`}>
+            <div
+              className={`card p-6 border flex flex-col sm:flex-row items-center justify-between gap-4 ${
+                allGroupsComplete
+                  ? 'bg-emerald-500/10 border-emerald-500/40'
+                  : 'bg-surface border-border-light'
+              }`}
+            >
               <div>
                 <div className="flex items-center gap-2">
                   <h4 className="font-display font-bold text-lg text-text">
@@ -434,6 +488,7 @@ const TournamentDetails: React.FC = () => {
                   allGroupsComplete ? 'btn-primary bg-emerald-600 hover:bg-emerald-500' : 'btn-secondary'
                 }`}
                 onClick={handleGenerateKnockoutStage}
+                disabled={isProcessing}
               >
                 <Sparkles className="w-4 h-4 mr-1.5" />
                 {allGroupsComplete ? 'Generate Knockout Stage' : 'Generate Knockout (Manual Override)'}
@@ -483,7 +538,11 @@ const TournamentDetails: React.FC = () => {
                 <span className="font-bold text-emerald-400 text-sm">All Group Matches Completed!</span>
                 <p className="text-xs text-text-muted">Top 2 teams from every group have officially qualified.</p>
               </div>
-              <button className="btn btn-primary bg-emerald-600 hover:bg-emerald-500 text-xs" onClick={handleGenerateKnockoutStage}>
+              <button
+                className="btn btn-primary bg-emerald-600 hover:bg-emerald-500 text-xs"
+                onClick={handleGenerateKnockoutStage}
+                disabled={isProcessing}
+              >
                 <Sparkles className="w-4 h-4 mr-1" /> Generate Knockout Bracket
               </button>
             </div>
@@ -526,7 +585,7 @@ const TournamentDetails: React.FC = () => {
               <h3 className="font-display text-xl">Tournament Participants ({tournamentPlayers.length})</h3>
               <p className="text-xs text-text-muted">Players currently competing in this tournament</p>
             </div>
-            <button className="btn btn-primary" onClick={handleOpenAddPlayerModal} disabled={availablePlayers.length === 0}>
+            <button className="btn btn-primary" onClick={handleOpenAddPlayerModal} disabled={availablePlayers.length === 0 || isProcessing}>
               <Plus className="w-4 h-4 mr-2" /> Add Players
             </button>
           </div>
@@ -550,6 +609,7 @@ const TournamentDetails: React.FC = () => {
                     className="btn btn-ghost text-red-500 p-1.5 hover:bg-red-500/10"
                     onClick={() => setPlayerToRemove(p.id)}
                     title="Remove Player"
+                    disabled={isProcessing}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -589,12 +649,12 @@ const TournamentDetails: React.FC = () => {
                 </button>
               </div>
 
-              <button className="btn btn-secondary text-xs" onClick={() => setShowCustomMatchModal(true)}>
+              <button className="btn btn-secondary text-xs" onClick={() => setShowCustomMatchModal(true)} disabled={isProcessing}>
                 <Plus className="w-3.5 h-3.5 mr-1" /> Add Match
               </button>
 
               {matches.length > 0 && (
-                <button className="btn btn-ghost text-red-500 text-xs" onClick={() => setShowClearFixturesConfirm(true)}>
+                <button className="btn btn-ghost text-red-500 text-xs" onClick={() => setShowClearFixturesConfirm(true)} disabled={isProcessing}>
                   <Trash2 className="w-3.5 h-3.5 mr-1" /> Clear All
                 </button>
               )}
@@ -614,7 +674,7 @@ const TournamentDetails: React.FC = () => {
                 <div key={match.id} className="card p-4 border border-border-light flex flex-col justify-between space-y-3">
                   <div className="flex justify-between items-center text-xs border-b border-border-light/40 pb-2">
                     <span className="font-bold text-accent">{match.round || match.match_code}</span>
-                    <button onClick={() => setMatchToDelete(match.id)} className="text-red-500 hover:underline text-[11px]">
+                    <button onClick={() => setMatchToDelete(match.id)} className="text-red-500 hover:underline text-[11px]" disabled={isProcessing}>
                       Delete
                     </button>
                   </div>
@@ -635,6 +695,7 @@ const TournamentDetails: React.FC = () => {
                     <button
                       onClick={() => setSelectedMatch(match)}
                       className={`btn text-xs py-1 px-3 ${match.status === 'completed' ? 'btn-secondary' : 'btn-primary'}`}
+                      disabled={isProcessing}
                     >
                       {match.status === 'completed' ? 'Edit Score' : 'Enter Score'}
                     </button>
@@ -688,7 +749,7 @@ const TournamentDetails: React.FC = () => {
 
           <div className="flex justify-end gap-2 pt-3 border-t border-border-light">
             <button className="btn btn-ghost" onClick={() => setShowAddPlayer(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleAddPlayersSubmit} disabled={selectedPlayerIdsToAdd.length === 0}>
+            <button className="btn btn-primary" onClick={handleAddPlayersSubmit} disabled={selectedPlayerIdsToAdd.length === 0 || isProcessing}>
               Add {selectedPlayerIdsToAdd.length} Player(s)
             </button>
           </div>
@@ -724,7 +785,7 @@ const TournamentDetails: React.FC = () => {
 
           <div className="flex justify-end gap-2 pt-3 border-t border-border-light">
             <button className="btn btn-ghost" onClick={() => setShowGenerateModal(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleExecuteGenerateFixtures}>
+            <button className="btn btn-primary" onClick={handleExecuteGenerateFixtures} disabled={isProcessing}>
               Generate Schedule
             </button>
           </div>
@@ -737,11 +798,11 @@ const TournamentDetails: React.FC = () => {
           match={selectedMatch}
           player1={state.players.find(p => p.id === selectedMatch.player1_id)!}
           player2={state.players.find(p => p.id === selectedMatch.player2_id)!}
-          onSave={(p1s, p2s, winnerId, penP1, penP2) => {
+          onSave={async (p1s, p2s, winnerId, penP1, penP2) => {
             if (selectedMatch.stage === 'knockout') {
-              handleSaveKnockoutScore(selectedMatch, p1s, p2s, winnerId, penP1, penP2);
+              await handleSaveKnockoutScore(selectedMatch, p1s, p2s, winnerId, penP1, penP2);
             } else {
-              updateMatch({
+              const success = await updateMatch({
                 ...selectedMatch,
                 status: 'completed',
                 player1_score: p1s,
@@ -751,7 +812,9 @@ const TournamentDetails: React.FC = () => {
                 penalty_player2_score: penP2,
                 updated_at: new Date().toISOString(),
               });
-              showToast('Score recorded!', 'success');
+              if (success) {
+                showToast('Score recorded!', 'success');
+              }
             }
             setSelectedMatch(null);
           }}
@@ -773,11 +836,13 @@ const TournamentDetails: React.FC = () => {
       <ConfirmDialog
         isOpen={!!matchToDelete}
         onCancel={() => setMatchToDelete(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (matchToDelete) {
-            deleteMatch(matchToDelete);
-            showToast('Match deleted', 'success');
-            setMatchToDelete(null);
+            const success = await deleteMatch(matchToDelete);
+            if (success) {
+              showToast('Match deleted', 'success');
+              setMatchToDelete(null);
+            }
           }
         }}
         title="Delete Match"
@@ -799,11 +864,13 @@ const TournamentDetails: React.FC = () => {
       <ConfirmDialog
         isOpen={!!playerToRemove}
         onCancel={() => setPlayerToRemove(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (playerToRemove) {
-            removeTournamentPlayer(tournament.id, playerToRemove);
-            showToast('Player removed', 'success');
-            setPlayerToRemove(null);
+            const success = await removeTournamentPlayer(tournament.id, playerToRemove);
+            if (success) {
+              showToast('Player removed', 'success');
+              setPlayerToRemove(null);
+            }
           }
         }}
         title="Remove Player"

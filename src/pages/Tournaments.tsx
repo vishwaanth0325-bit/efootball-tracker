@@ -7,8 +7,9 @@ import { TournamentCard } from '../components/tournaments/TournamentCard';
 import { TournamentForm } from '../components/tournaments/TournamentForm';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
+import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { generateFixtures } from '../lib/fixtures';
-import { Plus, Trophy } from 'lucide-react';
+import { Plus, Trophy, AlertTriangle, RefreshCw } from 'lucide-react';
 
 const Tournaments: React.FC = () => {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ const Tournaments: React.FC = () => {
     deleteTournament,
     setActiveTournament,
     addMatches,
+    refreshData,
   } = useApp();
   const { showToast } = useToast();
 
@@ -26,60 +28,98 @@ const Tournaments: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredTournaments = useMemo(() => {
     if (statusFilter === 'all') return state.tournaments;
     return state.tournaments.filter(t => t.status === statusFilter);
   }, [state.tournaments, statusFilter]);
 
-  const handleSaveTournament = (
+  const handleSaveTournament = async (
     data: Omit<Tournament, 'id' | 'created_at'>,
     selectedPlayerIds?: string[],
     autoGenerateFixtures?: boolean
   ) => {
-    if (editingTournament) {
-      updateTournament({ ...editingTournament, ...data });
-      showToast('Tournament updated', 'success');
-    } else {
-      const newTournament = addTournament(data, selectedPlayerIds);
-      if (!state.activeTournamentId) {
-        setActiveTournament(newTournament.id);
-      }
+    setIsSubmitting(true);
+    try {
+      if (editingTournament) {
+        const success = await updateTournament({ ...editingTournament, ...data });
+        if (success) {
+          showToast('Tournament updated', 'success');
+          setShowForm(false);
+          setEditingTournament(null);
+        }
+      } else {
+        const newTournament = await addTournament(data, selectedPlayerIds);
+        if (newTournament) {
+          if (!state.activeTournamentId) {
+            setActiveTournament(newTournament.id);
+          }
 
-      if (autoGenerateFixtures && selectedPlayerIds && selectedPlayerIds.length >= 2) {
-        const fixtures = generateFixtures(
-          newTournament.id,
-          selectedPlayerIds,
-          false,
-          [],
-          newTournament.format
-        );
-        if (fixtures.length > 0) {
-          addMatches(fixtures as any);
+          if (autoGenerateFixtures && selectedPlayerIds && selectedPlayerIds.length >= 2) {
+            const fixtures = generateFixtures(
+              newTournament.id,
+              selectedPlayerIds,
+              false,
+              [],
+              newTournament.format
+            );
+            if (fixtures.length > 0) {
+              await addMatches(fixtures as any);
+            }
+          }
+
+          showToast('Tournament created successfully', 'success');
+          setShowForm(false);
+          setEditingTournament(null);
         }
       }
-
-      showToast('Tournament created successfully', 'success');
+    } finally {
+      setIsSubmitting(false);
     }
-    setShowForm(false);
-    setEditingTournament(null);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deletingId) {
-      deleteTournament(deletingId);
-      showToast('Tournament deleted', 'success');
-      setDeletingId(null);
+      setIsSubmitting(true);
+      try {
+        const success = await deleteTournament(deletingId);
+        if (success) {
+          showToast('Tournament deleted', 'success');
+          setDeletingId(null);
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
+
+  if (state.loading) {
+    return <LoadingSpinner fullPage />;
+  }
 
   const tToDelete = state.tournaments.find(t => t.id === deletingId);
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {state.loadError && (
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+            <div>
+              <div className="font-semibold text-red-400 text-sm">Database connection issue</div>
+              <div className="text-xs text-text-muted">{state.loadError}</div>
+            </div>
+          </div>
+          <button className="btn btn-secondary text-xs" onClick={() => refreshData()}>
+            <RefreshCw className="w-3.5 h-3.5 mr-1" /> Retry
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="font-display text-3xl">Tournaments</h1>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+        <button className="btn btn-primary" onClick={() => setShowForm(true)} disabled={isSubmitting}>
           <Plus className="w-4 h-4 mr-2" />
           New Tournament
         </button>

@@ -10,13 +10,21 @@ export const Sidebar: React.FC = () => {
   const { activeTournamentId, tournaments } = state;
   const { showToast } = useToast();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   const activeTournament = tournaments.find((t: { id: string }) => t.id === activeTournamentId);
 
-  const handleClear = () => {
-    clearAllData();
-    showToast('All local and test data wiped cleanly', 'info');
-    setShowClearConfirm(false);
+  const handleClear = async () => {
+    setIsClearing(true);
+    try {
+      const success = await clearAllData();
+      if (success) {
+        showToast('All database records cleared cleanly', 'info');
+        setShowClearConfirm(false);
+      }
+    } finally {
+      setIsClearing(false);
+    }
   };
 
   return (
@@ -61,6 +69,7 @@ export const Sidebar: React.FC = () => {
       <div className="p-4 border-t border-border-light">
         <button
           onClick={() => setShowClearConfirm(true)}
+          disabled={isClearing}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-text-muted hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/30 transition-colors"
         >
           <Trash2 size={14} />
@@ -73,7 +82,7 @@ export const Sidebar: React.FC = () => {
         onCancel={() => setShowClearConfirm(false)}
         onConfirm={handleClear}
         title="Clear All Project Data"
-        message="Are you sure you want to completely erase all players, tournaments, and match records? This resets the tracker to a clean state."
+        message="Are you sure you want to completely erase all players, tournaments, and match records from Supabase? This resets the tracker to a clean state."
         confirmLabel="Wipe Everything"
         danger={true}
       />

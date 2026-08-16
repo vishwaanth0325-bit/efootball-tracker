@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Trophy, Users, Gamepad2, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Trophy, Users, Gamepad2, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useToast } from '../context/ToastContext';
 import { computeStandings } from '../lib/calculations';
@@ -14,7 +15,8 @@ import { ScoreEntry } from '../components/matches/ScoreEntry';
 import { Badge } from '../components/ui/Badge';
 
 const Dashboard: React.FC = () => {
-  const { state, updateMatch, setActiveTournament } = useApp();
+  const navigate = useNavigate();
+  const { state, updateMatch, setActiveTournament, refreshData } = useApp();
   const { showToast } = useToast();
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
@@ -28,12 +30,27 @@ const Dashboard: React.FC = () => {
   if (!activeTournament || !activeTournamentId) {
     return (
       <div className="space-y-6 animate-fadeIn">
+        {state.loadError && (
+          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+              <div>
+                <div className="font-semibold text-red-400 text-sm">Database connection issue</div>
+                <div className="text-xs text-text-muted">{state.loadError}</div>
+              </div>
+            </div>
+            <button className="btn btn-secondary text-xs" onClick={() => refreshData()}>
+              <RefreshCw className="w-3.5 h-3.5 mr-1" /> Retry
+            </button>
+          </div>
+        )}
+
         <h1 className="font-display text-3xl">Dashboard</h1>
         <EmptyState
           icon={Trophy}
           title="No Active Tournament"
           description="Create a tournament and set it as active to see the dashboard."
-          action={{ label: 'Go to Tournaments', onClick: () => window.location.href = '/tournaments' }}
+          action={{ label: 'Go to Tournaments', onClick: () => navigate('/tournaments') }}
         />
         {state.tournaments.length > 0 && (
           <div className="card p-4">
@@ -60,7 +77,7 @@ const Dashboard: React.FC = () => {
     .map(tp => state.players.find(p => p.id === tp.player_id)!)
     .filter(Boolean);
 
-   const activeMatches = state.matches.filter(m => m.tournament_id === activeTournamentId);
+  const activeMatches = state.matches.filter(m => m.tournament_id === activeTournamentId);
   const completedMatches = activeMatches.filter(m => m.status === 'completed');
   const upcomingMatches = activeMatches.filter(m => m.status === 'upcoming');
 
@@ -68,21 +85,38 @@ const Dashboard: React.FC = () => {
   const totalMatches = activeMatches.length;
   const completionPct = totalMatches === 0 ? 0 : Math.round((completedMatches.length / totalMatches) * 100);
 
-  const handleSaveScore = (p1Score: number, p2Score: number) => {
+  const handleSaveScore = async (p1Score: number, p2Score: number) => {
     if (!selectedMatch) return;
-    updateMatch({
+    const success = await updateMatch({
       ...selectedMatch,
       status: 'completed',
       player1_score: p1Score,
       player2_score: p2Score,
       updated_at: new Date().toISOString(),
     });
-    showToast('Result saved!');
-    setSelectedMatch(null);
+    if (success) {
+      showToast('Result saved!', 'success');
+      setSelectedMatch(null);
+    }
   };
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {state.loadError && (
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+            <div>
+              <div className="font-semibold text-red-400 text-sm">Database connection issue</div>
+              <div className="text-xs text-text-muted">{state.loadError}</div>
+            </div>
+          </div>
+          <button className="btn btn-secondary text-xs" onClick={() => refreshData()}>
+            <RefreshCw className="w-3.5 h-3.5 mr-1" /> Retry
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>

@@ -6,18 +6,20 @@ import { PlayerCard } from '../components/players/PlayerCard';
 import { PlayerForm } from '../components/players/PlayerForm';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
+import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { Input } from '../components/ui/Input';
-import { Plus, Search, Users } from 'lucide-react';
+import { Plus, Search, Users, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Badge } from '../components/ui/Badge';
 
 const Players: React.FC = () => {
-  const { state, addPlayer, updatePlayer, deletePlayer } = useApp();
+  const { state, addPlayer, updatePlayer, deletePlayer, refreshData } = useApp();
   const { showToast } = useToast();
 
   const [search, setSearch] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [deletingPlayerId, setDeletingPlayerId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredPlayers = useMemo(() => {
     return state.players.filter(p => {
@@ -26,36 +28,71 @@ const Players: React.FC = () => {
     });
   }, [state.players, search]);
 
-  const handleSavePlayer = (playerData: Omit<Player, 'id' | 'created_at'>) => {
-    if (editingPlayer) {
-      updatePlayer({ ...editingPlayer, ...playerData });
-      showToast('Player updated successfully', 'success');
-      setEditingPlayer(null);
-    } else {
-      addPlayer(playerData);
-      showToast('Player added successfully', 'success');
-      setShowAddForm(false);
+  const handleSavePlayer = async (playerData: Omit<Player, 'id' | 'created_at'>) => {
+    setIsSubmitting(true);
+    try {
+      if (editingPlayer) {
+        const success = await updatePlayer({ ...editingPlayer, ...playerData });
+        if (success) {
+          showToast('Player updated successfully', 'success');
+          setEditingPlayer(null);
+        }
+      } else {
+        const created = await addPlayer(playerData);
+        if (created) {
+          showToast('Player added successfully', 'success');
+          setShowAddForm(false);
+        }
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleDeletePlayer = () => {
+  const handleDeletePlayer = async () => {
     if (deletingPlayerId) {
-      deletePlayer(deletingPlayerId);
-      showToast('Player deleted successfully', 'success');
-      setDeletingPlayerId(null);
+      setIsSubmitting(true);
+      try {
+        const success = await deletePlayer(deletingPlayerId);
+        if (success) {
+          showToast('Player deleted successfully', 'success');
+          setDeletingPlayerId(null);
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
+
+  if (state.loading) {
+    return <LoadingSpinner fullPage />;
+  }
 
   const playerToDelete = state.players.find(p => p.id === deletingPlayerId);
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {state.loadError && (
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+            <div>
+              <div className="font-semibold text-red-400 text-sm">Database connection issue</div>
+              <div className="text-xs text-text-muted">{state.loadError}</div>
+            </div>
+          </div>
+          <button className="btn btn-secondary text-xs" onClick={() => refreshData()}>
+            <RefreshCw className="w-3.5 h-3.5 mr-1" /> Retry
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
           <h1 className="font-display text-3xl">Players & Teams</h1>
           <Badge variant="active">{state.players.length}</Badge>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowAddForm(true)}>
+        <button className="btn btn-primary" onClick={() => setShowAddForm(true)} disabled={isSubmitting}>
           <Plus className="w-4 h-4 mr-2" />
           Add Player
         </button>
