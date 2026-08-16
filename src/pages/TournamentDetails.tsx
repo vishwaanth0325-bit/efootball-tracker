@@ -9,6 +9,8 @@ import { LeaderboardTable } from '../components/dashboard/LeaderboardTable';
 import { UpcomingMatches } from '../components/dashboard/UpcomingMatches';
 import { ScoreEntry } from '../components/matches/ScoreEntry';
 import { MatchForm } from '../components/matches/MatchForm';
+import { GroupTables } from '../components/tournaments/GroupTables';
+import { FixturesChartView } from '../components/tournaments/FixturesChartView';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -25,9 +27,12 @@ import {
   Play,
   CheckSquare,
   Square,
+  BarChart3,
+  List,
+  Layers,
 } from 'lucide-react';
 
-type Tab = 'overview' | 'players' | 'fixtures' | 'standings';
+type Tab = 'overview' | 'groups' | 'players' | 'fixtures' | 'standings';
 
 const TournamentDetails: React.FC = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
@@ -44,10 +49,11 @@ const TournamentDetails: React.FC = () => {
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [fixturesViewMode, setFixturesViewMode] = useState<'list' | 'chart'>('list');
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [selectedPlayerIdsToAdd, setSelectedPlayerIdsToAdd] = useState<string[]>([]);
-  
+
   // Custom match form
   const [showCustomMatchModal, setShowCustomMatchModal] = useState(false);
 
@@ -77,6 +83,11 @@ const TournamentDetails: React.FC = () => {
     .filter(m => m.status === 'upcoming')
     .sort((a, b) => new Date(a.scheduled_date || 0).getTime() - new Date(b.scheduled_date || 0).getTime());
   const completedMatches = matches.filter(m => m.status === 'completed');
+
+  const isGroupsTournament =
+    tournament.format === 'groups' ||
+    tournament.format === 'group_knockout' ||
+    matches.some(m => m.round && m.round.toLowerCase().startsWith('group'));
 
   const standings = computeStandings(tournament.id, tournamentPlayers, matches, tournament);
   const availablePlayers = state.players.filter(
@@ -142,6 +153,14 @@ const TournamentDetails: React.FC = () => {
     setShowCustomMatchModal(false);
   };
 
+  const tabs: { key: Tab; label: string; icon?: any }[] = [
+    { key: 'overview', label: 'Overview' },
+    ...(isGroupsTournament ? [{ key: 'groups' as Tab, label: 'Groups (A & B)' }] : []),
+    { key: 'players', label: `Players (${tournamentPlayers.length})` },
+    { key: 'fixtures', label: `Fixtures (${matches.length})` },
+    { key: 'standings', label: 'Standings' },
+  ];
+
   const renderOverview = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -161,6 +180,23 @@ const TournamentDetails: React.FC = () => {
           <div className="text-text-muted text-sm">Upcoming Matches</div>
         </div>
       </div>
+
+      {isGroupsTournament && (
+        <div className="card p-5 bg-surface border border-accent/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent/20 border border-accent/40 flex items-center justify-center text-accent">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-semibold text-accent">Group Stage Active</h4>
+              <p className="text-xs text-text-muted">Teams are partitioned into Group A and Group B for group stages.</p>
+            </div>
+          </div>
+          <button className="btn btn-secondary text-xs whitespace-nowrap" onClick={() => setActiveTab('groups')}>
+            View Group A & B Standings →
+          </button>
+        </div>
+      )}
 
       {tournamentPlayers.length < 2 && (
         <div className="card p-5 bg-surface border border-accent/30 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -282,110 +318,153 @@ const TournamentDetails: React.FC = () => {
 
     return (
       <div className="space-y-6">
+        {/* Header with View Mode Switcher */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h3 className="font-display text-xl">Match Fixtures ({matches.length})</h3>
             <p className="text-xs text-text-muted">Manage scheduled matches, brackets, and enter game scores</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button className="btn btn-secondary text-xs sm:text-sm" onClick={() => setShowCustomMatchModal(true)}>
-              <Plus className="w-4 h-4 mr-1" /> Add Match
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* View Mode Switcher: List vs Graph/Chart */}
+            <div className="flex bg-surface rounded-xl p-1 border border-border-light mr-2">
+              <button
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  fixturesViewMode === 'list'
+                    ? 'bg-accent text-bg shadow-sm'
+                    : 'text-text-muted hover:text-text'
+                }`}
+                onClick={() => setFixturesViewMode('list')}
+              >
+                <List className="w-3.5 h-3.5" />
+                List
+              </button>
+              <button
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  fixturesViewMode === 'chart'
+                    ? 'bg-accent text-bg shadow-sm'
+                    : 'text-text-muted hover:text-text'
+                }`}
+                onClick={() => setFixturesViewMode('chart')}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                Graph & Charts
+              </button>
+            </div>
+
+            <button className="btn btn-secondary text-xs" onClick={() => setShowCustomMatchModal(true)}>
+              <Plus className="w-3.5 h-3.5 mr-1" /> Add Match
             </button>
             <button
-              className="btn btn-primary text-xs sm:text-sm"
+              className="btn btn-primary text-xs"
               onClick={handleOpenGenerateModal}
               disabled={tournamentPlayers.length < 2}
             >
-              <Play className="w-4 h-4 mr-1" /> Generate Fixtures
+              <Play className="w-3.5 h-3.5 mr-1" /> Generate
             </button>
             {matches.length > 0 && (
               <button
-                className="btn btn-ghost text-red-500 hover:bg-red-500/10 text-xs sm:text-sm"
+                className="btn btn-ghost text-red-500 hover:bg-red-500/10 text-xs"
                 onClick={() => setShowClearFixturesConfirm(true)}
               >
-                <Trash2 className="w-4 h-4 mr-1" /> Clear All
+                <Trash2 className="w-3.5 h-3.5 mr-1" /> Clear
               </button>
             )}
           </div>
         </div>
 
-        {matches.length === 0 ? (
-          <EmptyState
-            title="No Fixtures Generated"
-            description="Generate a match schedule for your participants or add matches manually."
-            icon={Calendar}
-            action={
-              tournamentPlayers.length >= 2
-                ? { label: 'Generate Schedule', onClick: handleOpenGenerateModal }
-                : { label: 'Add Players First', onClick: handleOpenAddPlayerModal }
-            }
+        {/* View Mode 1: Graph / Chart View */}
+        {fixturesViewMode === 'chart' && (
+          <FixturesChartView
+            tournament={tournament}
+            players={tournamentPlayers}
+            matches={matches}
+            onUpdateMatch={updateMatch}
           />
-        ) : (
-          <div className="space-y-8">
-            {roundList.map(round => {
-              const roundMatches = matches.filter(m => (m.round || 'Unassigned') === round);
-              return (
-                <div key={round} className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-border-light pb-2">
-                    <h4 className="font-display text-lg font-bold text-accent">{round}</h4>
-                    <span className="text-xs text-text-muted">{roundMatches.length} match(es)</span>
-                  </div>
-                  <div className="grid gap-3">
-                    {roundMatches.map(match => {
-                      const p1 = state.players.find(p => p.id === match.player1_id);
-                      const p2 = state.players.find(p => p.id === match.player2_id);
-                      const isComplete = match.status === 'completed';
+        )}
 
-                      return (
-                        <div
-                          key={match.id}
-                          className="card p-4 flex flex-col sm:flex-row items-center justify-between gap-4 hover:border-accent/40 transition-colors"
-                        >
-                          <div className="flex items-center justify-between w-full sm:w-2/3">
-                            <div className={`w-2/5 text-right font-bold truncate ${isComplete && (match.player1_score ?? 0) > (match.player2_score ?? 0) ? 'text-accent' : ''}`}>
-                              {p1?.name || 'Unknown Player'}
-                            </div>
+        {/* View Mode 2: Standard List View */}
+        {fixturesViewMode === 'list' && (
+          <>
+            {matches.length === 0 ? (
+              <EmptyState
+                title="No Fixtures Generated"
+                description="Generate a match schedule for your participants or add matches manually."
+                icon={Calendar}
+                action={
+                  tournamentPlayers.length >= 2
+                    ? { label: 'Generate Schedule', onClick: handleOpenGenerateModal }
+                    : { label: 'Add Players First', onClick: handleOpenAddPlayerModal }
+                }
+              />
+            ) : (
+              <div className="space-y-8">
+                {roundList.map(round => {
+                  const roundMatches = matches.filter(m => (m.round || 'Unassigned') === round);
+                  return (
+                    <div key={round} className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-border-light pb-2">
+                        <h4 className="font-display text-lg font-bold text-accent">{round}</h4>
+                        <span className="text-xs text-text-muted">{roundMatches.length} match(es)</span>
+                      </div>
+                      <div className="grid gap-3">
+                        {roundMatches.map(match => {
+                          const p1 = state.players.find(p => p.id === match.player1_id);
+                          const p2 = state.players.find(p => p.id === match.player2_id);
+                          const isComplete = match.status === 'completed';
 
-                            <div className="w-1/5 text-center px-2">
-                              {isComplete ? (
-                                <span className="font-mono font-bold text-base bg-surface px-3 py-1 rounded border border-border-light">
-                                  {match.player1_score} - {match.player2_score}
-                                </span>
-                              ) : (
-                                <span className="text-xs font-semibold uppercase tracking-wider text-text-muted bg-surface px-2 py-1 rounded">
-                                  VS
-                                </span>
-                              )}
-                            </div>
-
-                            <div className={`w-2/5 text-left font-bold truncate ${isComplete && (match.player2_score ?? 0) > (match.player1_score ?? 0) ? 'text-accent' : ''}`}>
-                              {p2?.name || 'Unknown Player'}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                            <button
-                              className={`btn text-xs py-1.5 px-3 ${isComplete ? 'btn-secondary' : 'btn-primary'}`}
-                              onClick={() => setSelectedMatch(match)}
+                          return (
+                            <div
+                              key={match.id}
+                              className="card p-4 flex flex-col sm:flex-row items-center justify-between gap-4 hover:border-accent/40 transition-colors"
                             >
-                              {isComplete ? 'Edit Score' : 'Enter Score'}
-                            </button>
-                            <button
-                              className="btn btn-ghost text-red-500 hover:bg-red-500/10 text-xs py-1.5 px-2"
-                              onClick={() => setMatchToDelete(match.id)}
-                              title="Delete match"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                              <div className="flex items-center justify-between w-full sm:w-2/3">
+                                <div className={`w-2/5 text-right font-bold truncate ${isComplete && (match.player1_score ?? 0) > (match.player2_score ?? 0) ? 'text-accent' : ''}`}>
+                                  {p1?.name || 'Unknown Player'}
+                                </div>
+
+                                <div className="w-1/5 text-center px-2">
+                                  {isComplete ? (
+                                    <span className="font-mono font-bold text-base bg-surface px-3 py-1 rounded border border-border-light">
+                                      {match.player1_score} - {match.player2_score}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-text-muted bg-surface px-2 py-1 rounded">
+                                      VS
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className={`w-2/5 text-left font-bold truncate ${isComplete && (match.player2_score ?? 0) > (match.player1_score ?? 0) ? 'text-accent' : ''}`}>
+                                  {p2?.name || 'Unknown Player'}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                                <button
+                                  className={`btn text-xs py-1.5 px-3 ${isComplete ? 'btn-secondary' : 'btn-primary'}`}
+                                  onClick={() => setSelectedMatch(match)}
+                                >
+                                  {isComplete ? 'Edit Score' : 'Enter Score'}
+                                </button>
+                                <button
+                                  className="btn btn-ghost text-red-500 hover:bg-red-500/10 text-xs py-1.5 px-2"
+                                  onClick={() => setMatchToDelete(match.id)}
+                                  title="Delete match"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
     );
@@ -427,23 +506,31 @@ const TournamentDetails: React.FC = () => {
       </div>
 
       <div className="flex gap-2 border-b border-border-light overflow-x-auto pb-2">
-        {(['overview', 'players', 'fixtures', 'standings'] as Tab[]).map(tab => (
+        {tabs.map(tab => (
           <button
-            key={tab}
+            key={tab.key}
             className={`px-4 py-2 font-medium capitalize rounded-t-lg whitespace-nowrap transition-colors ${
-              activeTab === tab
+              activeTab === tab.key
                 ? 'bg-surface-hover text-text border-b-2 border-accent font-bold'
                 : 'text-text-muted hover:text-text hover:bg-surface'
             }`}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => setActiveTab(tab.key)}
           >
-            {tab}
+            {tab.label}
           </button>
         ))}
       </div>
 
       <div>
         {activeTab === 'overview' && renderOverview()}
+        {activeTab === 'groups' && (
+          <GroupTables
+            tournament={tournament}
+            tournamentPlayers={tournamentPlayers}
+            matches={matches}
+            onUpdateMatch={updateMatch}
+          />
+        )}
         {activeTab === 'players' && renderPlayers()}
         {activeTab === 'fixtures' && renderFixtures()}
         {activeTab === 'standings' && renderStandings()}
