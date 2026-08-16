@@ -8,6 +8,7 @@ import {
   checkAllGroupsComplete,
   generateAllGroupFixtures,
   buildDefaultGroupAssignments,
+  splitPlayersIntoGroupsBySize,
   generateKnockoutBracketMatches,
   advanceKnockoutWinner,
   computeTournamentProgress,
@@ -19,6 +20,7 @@ import { UpcomingMatches } from '../components/dashboard/UpcomingMatches';
 import { ScoreEntry } from '../components/matches/ScoreEntry';
 import { MatchForm } from '../components/matches/MatchForm';
 import { GroupTables } from '../components/tournaments/GroupTables';
+import { GroupManagerModal } from '../components/tournaments/GroupManagerModal';
 import { KnockoutBracket } from '../components/tournaments/KnockoutBracket';
 import { FixturesChartView } from '../components/tournaments/FixturesChartView';
 import { Modal } from '../components/ui/Modal';
@@ -40,6 +42,8 @@ import {
   GitBranch,
   Sparkles,
   CheckCircle2,
+  Edit3,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 type Tab = 'overview' | 'groups' | 'knockout' | 'players' | 'fixtures' | 'standings';
@@ -62,16 +66,21 @@ const TournamentDetails: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [fixturesViewMode, setFixturesViewMode] = useState<'list' | 'chart'>('list');
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [editingMatch, setEditingMatch] = useState<Match | null>(null);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [selectedPlayerIdsToAdd, setSelectedPlayerIdsToAdd] = useState<string[]>([]);
 
   // Custom match form
   const [showCustomMatchModal, setShowCustomMatchModal] = useState(false);
 
+  // Group Manager Modal
+  const [showGroupManagerModal, setShowGroupManagerModal] = useState(false);
+
   // Fixtures generation modal state
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [genFormat, setGenFormat] = useState<TournamentFormat>('group_knockout');
-  const [numGroups, setNumGroups] = useState(8);
+  const [groupSplitMode, setGroupSplitMode] = useState<'size_4' | 'size_3' | 'custom_groups'>('size_4');
+  const [numGroups, setNumGroups] = useState(4);
 
   const [showClearFixturesConfirm, setShowClearFixturesConfirm] = useState(false);
   const [matchToDelete, setMatchToDelete] = useState<string | null>(null);
@@ -164,15 +173,33 @@ const TournamentDetails: React.FC = () => {
     setIsProcessing(true);
     try {
       if (genFormat === 'group_knockout' || genFormat === 'groups') {
-        // Group Stage generator (World Cup style)
-        const groupCount = Math.min(numGroups, Math.max(2, Math.floor(playerIds.length / 2)));
-        const groupAssignments = buildDefaultGroupAssignments(playerIds, groupCount);
+        let groupAssignments: Record<string, string[]>;
+
+        if (groupSplitMode === 'size_3') {
+          groupAssignments = splitPlayersIntoGroupsBySize(playerIds, 3);
+        } else if (groupSplitMode === 'size_4') {
+          groupAssignments = splitPlayersIntoGroupsBySize(playerIds, 4);
+        } else {
+          const groupCount = Math.min(numGroups, Math.max(1, playerIds.length));
+          groupAssignments = buildDefaultGroupAssignments(playerIds, groupCount);
+        }
+
+        // Save group assignments in tournament config
+        await updateTournament({
+          ...tournament,
+          group_config: {
+            group_count: Object.keys(groupAssignments).length,
+            qualifiers_per_group: 2,
+            group_assignments: groupAssignments,
+          },
+        });
+
         const groupFixtures = generateAllGroupFixtures(tournament.id, groupAssignments);
 
         if (groupFixtures.length > 0) {
           const success = await addMatches(groupFixtures as any);
           if (success) {
-            showToast(`Generated ${groupFixtures.length} group matches across ${groupCount} groups!`, 'success');
+            showToast(`Generated ${groupFixtures.length} group matches across ${Object.keys(groupAssignments).length} groups!`, 'success');
             setActiveTab('groups');
           }
         }
@@ -199,6 +226,74 @@ const TournamentDetails: React.FC = () => {
     }
   };
 
+  // Handle saving customized group assignments from the GroupManagerModal
+  const handleSaveGroupAssignments = async (
+    newGroupAssignments: Record<string, string[]>,
+    shouldRegenerateFixtures: boolean
+  ) => {
+    setIsProcessing(true);
+    try {
+      // 1. Update tournament configuration
+      await updateTournament({
+        ...tournament,
+        group_config: {
+          group_count: Object.keys(newGroupAssignments).length,
+          qualifiers_per_group: 2,
+          group_assignments: newGroupAssignments,
+        },
+      });
+
+      // 2. If requested, clear existing group matches and regenerate new fixtures
+      if (shouldRegenerateFixtures) {
+        // Delete only group stage matches
+        const groupMatchIds = matches.filter(m => m.stage === 'group' || (m.round && m.round.toLowerCase().startsWith('group'))).map(m => m.id);
+        for (const mId of groupMatchIds) {
+          await deleteMatch(mId);
+        }
+
+        const newFixtures = generateAllGroupFixtures(tournament.id, newGroupAssignments);
+        if (newFixtures.length > 0) {
+          await addMatches(newFixtures as any);
+        }
+        showToast(`Groups updated & ${newFixtures.length} new group fixtures generated!`, 'success');
+      } else {
+        showToast('Group assignments updated successfully', 'success');
+      }
+      setActiveTab('groups');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Handle moving an individual player to another group
+  const handleReassignGroup = async (playerId: string, targetGroup: string) => {
+    const currentAssignments: Record<string, string[]> = tournament.group_config?.group_assignments
+      ? { ...(tournament.group_config.group_assignments as Record<string, string[]>) }
+      : buildDefaultGroupAssignments(tournamentPlayers.map(p => p.id), groupSummaries.length || 4);
+
+    // Remove player from all groups
+    Object.keys(currentAssignments).forEach(g => {
+      currentAssignments[g] = (currentAssignments[g] || []).filter(id => id !== playerId);
+    });
+
+    // Add to target group
+    if (!currentAssignments[targetGroup]) {
+      currentAssignments[targetGroup] = [];
+    }
+    currentAssignments[targetGroup].push(playerId);
+
+    await updateTournament({
+      ...tournament,
+      group_config: {
+        group_count: Object.keys(currentAssignments).length,
+        qualifiers_per_group: 2,
+        group_assignments: currentAssignments,
+      },
+    });
+
+    showToast(`Player moved to ${targetGroup}`, 'success');
+  };
+
   // Generate World Cup Knockout Stage from Completed Groups
   const handleGenerateKnockoutStage = async () => {
     if (groupSummaries.length === 0) {
@@ -206,7 +301,6 @@ const TournamentDetails: React.FC = () => {
       return;
     }
 
-    // Check if knockout matches already exist
     if (knockoutMatches.length > 0) {
       showToast('Knockout bracket is already generated!', 'info');
       setActiveTab('knockout');
@@ -251,7 +345,6 @@ const TournamentDetails: React.FC = () => {
     const success = await updateMatch(updatedMatch);
     if (!success) return;
 
-    // If there's a winner, advance them to the downstream next_match_id!
     if (winnerId && match.next_match_id) {
       const advancedMatches = advanceKnockoutWinner(matches, match.id, winnerId);
       const downstreamMatch = advancedMatches.find(m => m.id === match.next_match_id);
@@ -260,7 +353,6 @@ const TournamentDetails: React.FC = () => {
       }
     }
 
-    // If this was the final, mark tournament champion!
     if (match.round === 'Final' && winnerId) {
       await updateTournament({
         ...tournament,
@@ -289,13 +381,24 @@ const TournamentDetails: React.FC = () => {
   const handleSaveCustomMatch = async (data: Partial<Match>) => {
     setIsProcessing(true);
     try {
-      const created = await addMatch({
-        ...data,
-        tournament_id: tournament.id,
-      } as any);
-      if (created) {
-        showToast('Match created successfully', 'success');
-        setShowCustomMatchModal(false);
+      if (editingMatch) {
+        const success = await updateMatch({
+          ...editingMatch,
+          ...data,
+        } as Match);
+        if (success) {
+          showToast('Fixture updated successfully', 'success');
+          setEditingMatch(null);
+        }
+      } else {
+        const created = await addMatch({
+          ...data,
+          tournament_id: tournament.id,
+        } as any);
+        if (created) {
+          showToast('Match created successfully', 'success');
+          setShowCustomMatchModal(false);
+        }
       }
     } finally {
       setIsProcessing(false);
@@ -337,7 +440,17 @@ const TournamentDetails: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {isGroupsOrWorldCup && tournamentPlayers.length >= 2 && (
+              <button
+                className="btn btn-secondary text-xs"
+                onClick={() => setShowGroupManagerModal(true)}
+                disabled={isProcessing}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 mr-1 text-accent" /> Split / Manage Groups
+              </button>
+            )}
+
             {tournamentPlayers.length >= 2 && matches.length === 0 && (
               <button
                 className="btn btn-primary text-xs"
@@ -479,7 +592,7 @@ const TournamentDetails: React.FC = () => {
                 <p className="text-xs text-text-muted mt-1">
                   {allGroupsComplete
                     ? 'All group matches are finished. Qualifiers (A1, A2, B1, B2...) are confirmed. Click to generate the World Cup bracket!'
-                    : 'Complete all group matches to determine the top 2 qualifiers from each group for the Round of 16 bracket.'}
+                    : 'Complete all group matches to determine the top qualifiers from each group for the knockout bracket.'}
                 </p>
               </div>
 
@@ -536,7 +649,7 @@ const TournamentDetails: React.FC = () => {
             <div className="p-4 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between gap-4">
               <div>
                 <span className="font-bold text-emerald-400 text-sm">All Group Matches Completed!</span>
-                <p className="text-xs text-text-muted">Top 2 teams from every group have officially qualified.</p>
+                <p className="text-xs text-text-muted">Top teams from every group have officially qualified.</p>
               </div>
               <button
                 className="btn btn-primary bg-emerald-600 hover:bg-emerald-500 text-xs"
@@ -552,7 +665,10 @@ const TournamentDetails: React.FC = () => {
             tournament={tournament}
             tournamentPlayers={tournamentPlayers}
             matches={matches}
+            groupAssignments={tournament.group_config?.group_assignments as Record<string, string[]> | undefined}
             onUpdateMatch={updateMatch}
+            onReassignGroup={handleReassignGroup}
+            onOpenGroupManager={() => setShowGroupManagerModal(true)}
           />
         </div>
       )}
@@ -563,7 +679,7 @@ const TournamentDetails: React.FC = () => {
           {knockoutMatches.length === 0 ? (
             <EmptyState
               title="Knockout Stage Not Generated Yet"
-              description="Complete the group matches or generate the World Cup knockout bracket."
+              description="Complete the group matches or generate the knockout bracket."
               icon={GitBranch}
               action={{ label: 'Generate Knockout Bracket', onClick: handleGenerateKnockoutStage }}
             />
@@ -649,7 +765,7 @@ const TournamentDetails: React.FC = () => {
                 </button>
               </div>
 
-              <button className="btn btn-secondary text-xs" onClick={() => setShowCustomMatchModal(true)} disabled={isProcessing}>
+              <button className="btn btn-secondary text-xs" onClick={() => { setEditingMatch(null); setShowCustomMatchModal(true); }} disabled={isProcessing}>
                 <Plus className="w-3.5 h-3.5 mr-1" /> Add Match
               </button>
 
@@ -674,9 +790,18 @@ const TournamentDetails: React.FC = () => {
                 <div key={match.id} className="card p-4 border border-border-light flex flex-col justify-between space-y-3">
                   <div className="flex justify-between items-center text-xs border-b border-border-light/40 pb-2">
                     <span className="font-bold text-accent">{match.round || match.match_code}</span>
-                    <button onClick={() => setMatchToDelete(match.id)} className="text-red-500 hover:underline text-[11px]" disabled={isProcessing}>
-                      Delete
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => { setEditingMatch(match); setShowCustomMatchModal(true); }}
+                        className="text-text-muted hover:text-accent flex items-center gap-1 text-[11px]"
+                        disabled={isProcessing}
+                      >
+                        <Edit3 size={11} /> Edit
+                      </button>
+                      <button onClick={() => setMatchToDelete(match.id)} className="text-red-500 hover:underline text-[11px]" disabled={isProcessing}>
+                        Delete
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between gap-2 text-sm font-semibold">
@@ -773,13 +898,68 @@ const TournamentDetails: React.FC = () => {
           />
 
           {(genFormat === 'group_knockout' || genFormat === 'groups') && (
-            <div className="space-y-1">
-              <label className="form-label text-sm">Number of Groups</label>
-              <select className="form-input" value={numGroups} onChange={e => setNumGroups(Number(e.target.value))}>
-                <option value={8}>8 Groups (Groups A–H • 4 players each • 32 players total)</option>
-                <option value={4}>4 Groups (Groups A–D • 16 players total)</option>
-                <option value={2}>2 Groups (Group A & Group B • 8 players total)</option>
-              </select>
+            <div className="space-y-3 p-3 bg-surface rounded-xl border border-border-light">
+              <label className="text-xs font-semibold text-text uppercase tracking-wider block">Group Splitting Method</label>
+              
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setGroupSplitMode('size_4')}
+                  className={`p-2.5 rounded-lg border text-center font-medium transition-colors ${
+                    groupSplitMode === 'size_4'
+                      ? 'bg-accent text-bg border-accent font-bold'
+                      : 'bg-surface-hover text-text hover:border-accent/50'
+                  }`}
+                >
+                  4 Players / Group
+                  <span className="block text-[10px] opacity-80 mt-0.5">
+                    {Math.ceil(tournamentPlayers.length / 4)} Groups
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setGroupSplitMode('size_3')}
+                  className={`p-2.5 rounded-lg border text-center font-medium transition-colors ${
+                    groupSplitMode === 'size_3'
+                      ? 'bg-accent text-bg border-accent font-bold'
+                      : 'bg-surface-hover text-text hover:border-accent/50'
+                  }`}
+                >
+                  3 Players / Group
+                  <span className="block text-[10px] opacity-80 mt-0.5">
+                    {Math.ceil(tournamentPlayers.length / 3)} Groups
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setGroupSplitMode('custom_groups')}
+                  className={`p-2.5 rounded-lg border text-center font-medium transition-colors ${
+                    groupSplitMode === 'custom_groups'
+                      ? 'bg-accent text-bg border-accent font-bold'
+                      : 'bg-surface-hover text-text hover:border-accent/50'
+                  }`}
+                >
+                  Custom Group Count
+                  <span className="block text-[10px] opacity-80 mt-0.5">
+                    {numGroups} Groups
+                  </span>
+                </button>
+              </div>
+
+              {groupSplitMode === 'custom_groups' && (
+                <div className="space-y-1 pt-2">
+                  <label className="text-xs text-text-muted">Number of Groups</label>
+                  <select className="form-input text-xs" value={numGroups} onChange={e => setNumGroups(Number(e.target.value))}>
+                    <option value={2}>2 Groups (Group A & B)</option>
+                    <option value={3}>3 Groups (Group A, B, C)</option>
+                    <option value={4}>4 Groups (Group A, B, C, D)</option>
+                    <option value={6}>6 Groups (Groups A–F)</option>
+                    <option value={8}>8 Groups (Groups A–H)</option>
+                  </select>
+                </div>
+              )}
             </div>
           )}
 
@@ -791,6 +971,17 @@ const TournamentDetails: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Group Manager Modal */}
+      {showGroupManagerModal && (
+        <GroupManagerModal
+          tournamentId={tournament.id}
+          players={tournamentPlayers}
+          initialAssignments={tournament.group_config?.group_assignments as Record<string, string[]> | undefined}
+          onSave={handleSaveGroupAssignments}
+          onClose={() => setShowGroupManagerModal(false)}
+        />
+      )}
 
       {/* Score Entry Modal */}
       {selectedMatch && (
@@ -822,13 +1013,14 @@ const TournamentDetails: React.FC = () => {
         />
       )}
 
-      {/* Custom Match Modal */}
+      {/* Custom Match & Edit Match Modal */}
       {showCustomMatchModal && (
         <MatchForm
           tournamentId={tournament.id}
           players={tournamentPlayers}
+          existingMatch={editingMatch || undefined}
           onSubmit={handleSaveCustomMatch}
-          onClose={() => setShowCustomMatchModal(false)}
+          onClose={() => { setShowCustomMatchModal(false); setEditingMatch(null); }}
         />
       )}
 

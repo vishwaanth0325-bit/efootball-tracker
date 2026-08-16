@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type { Player, Match, Tournament } from '../../lib/types';
 import { computeAllGroupSummaries, type GroupSummary } from '../../lib/tournamentEngine';
 import { ScoreEntry } from '../matches/ScoreEntry';
+import { MatchForm } from '../matches/MatchForm';
 import { LeaderboardTable } from '../dashboard/LeaderboardTable';
 import {
   Users,
@@ -10,6 +11,8 @@ import {
   Clock,
   ArrowRightLeft,
   Shield,
+  Edit3,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 interface GroupTablesProps {
@@ -19,6 +22,7 @@ interface GroupTablesProps {
   groupAssignments?: Record<string, string[]>;
   onUpdateMatch: (match: Match) => void;
   onReassignGroup?: (playerId: string, targetGroup: string) => void;
+  onOpenGroupManager?: () => void;
 }
 
 export const GroupTables: React.FC<GroupTablesProps> = ({
@@ -28,8 +32,10 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
   groupAssignments,
   onUpdateMatch,
   onReassignGroup,
+  onOpenGroupManager,
 }) => {
-  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [selectedMatchForScore, setSelectedMatchForScore] = useState<Match | null>(null);
+  const [selectedMatchForEdit, setSelectedMatchForEdit] = useState<Match | null>(null);
   const [activeGroupTab, setActiveGroupTab] = useState<string>('all');
   const [reassignPlayerId, setReassignPlayerId] = useState<string | null>(null);
 
@@ -58,35 +64,47 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
             )}
           </div>
           <p className="text-xs text-text-muted mt-0.5">
-            Single round-robin group stage. Top 2 players from each group qualify for the Knockout Stage.
+            Single round-robin group stage. Top teams from each group qualify for the Knockout Stage.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
-          <button
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-              activeGroupTab === 'all'
-                ? 'bg-accent text-bg shadow-sm'
-                : 'bg-surface hover:bg-surface-hover text-text-muted hover:text-text'
-            }`}
-            onClick={() => setActiveGroupTab('all')}
-          >
-            All Groups ({groupSummaries.length})
-          </button>
-          {groupSummaries.map(g => (
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenGroupManager && (
             <button
-              key={g.groupName}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
-                activeGroupTab === g.groupName
-                  ? 'bg-accent text-bg shadow-sm'
-                  : 'bg-surface hover:bg-surface-hover text-text-muted hover:text-text'
-              }`}
-              onClick={() => setActiveGroupTab(g.groupName)}
+              onClick={onOpenGroupManager}
+              className="btn btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 border-accent/40 hover:border-accent"
             >
-              <span>{g.groupName}</span>
-              {g.isComplete && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+              <SlidersHorizontal className="w-3.5 h-3.5 text-accent" />
+              <span>Split / Manage Groups</span>
             </button>
-          ))}
+          )}
+
+          <div className="flex flex-wrap gap-1 bg-surface p-1 rounded-xl border border-border-light">
+            <button
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                activeGroupTab === 'all'
+                  ? 'bg-accent text-bg shadow-sm'
+                  : 'text-text-muted hover:text-text'
+              }`}
+              onClick={() => setActiveGroupTab('all')}
+            >
+              All Groups ({groupSummaries.length})
+            </button>
+            {groupSummaries.map(g => (
+              <button
+                key={g.groupName}
+                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
+                  activeGroupTab === g.groupName
+                    ? 'bg-accent text-bg shadow-sm'
+                    : 'text-text-muted hover:text-text'
+                }`}
+                onClick={() => setActiveGroupTab(g.groupName)}
+              >
+                <span>{g.groupName}</span>
+                {g.isComplete && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -204,7 +222,7 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
                   </span>
                 </div>
 
-                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
                   {group.matches.map(m => {
                     const p1 = group.players.find(p => p.id === m.player1_id) || tournamentPlayers.find(p => p.id === m.player1_id);
                     const p2 = group.players.find(p => p.id === m.player2_id) || tournamentPlayers.find(p => p.id === m.player2_id);
@@ -224,12 +242,22 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
                           )}
                         </div>
                         <div className="flex-1 text-left font-semibold truncate">{p2?.name || 'Player 2'}</div>
-                        <button
-                          onClick={() => setSelectedMatch(m)}
-                          className={`btn text-[11px] py-1 px-2.5 shrink-0 ${isComplete ? 'btn-secondary' : 'btn-primary'}`}
-                        >
-                          {isComplete ? 'Edit' : 'Score'}
-                        </button>
+                        
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => setSelectedMatchForEdit(m)}
+                            className="btn btn-ghost p-1 text-text-muted hover:text-accent"
+                            title="Edit Fixture"
+                          >
+                            <Edit3 size={13} />
+                          </button>
+                          <button
+                            onClick={() => setSelectedMatchForScore(m)}
+                            className={`btn text-[11px] py-1 px-2.5 shrink-0 ${isComplete ? 'btn-secondary' : 'btn-primary'}`}
+                          >
+                            {isComplete ? 'Edit Score' : 'Score'}
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -241,22 +269,39 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
       </div>
 
       {/* Score Entry Modal for Group Matches */}
-      {selectedMatch && (
+      {selectedMatchForScore && (
         <ScoreEntry
-          match={selectedMatch}
-          player1={tournamentPlayers.find(p => p.id === selectedMatch.player1_id)!}
-          player2={tournamentPlayers.find(p => p.id === selectedMatch.player2_id)!}
+          match={selectedMatchForScore}
+          player1={tournamentPlayers.find(p => p.id === selectedMatchForScore.player1_id)!}
+          player2={tournamentPlayers.find(p => p.id === selectedMatchForScore.player2_id)!}
           onSave={(p1s, p2s) => {
             onUpdateMatch({
-              ...selectedMatch,
+              ...selectedMatchForScore,
               status: 'completed',
               player1_score: p1s,
               player2_score: p2s,
               updated_at: new Date().toISOString(),
             });
-            setSelectedMatch(null);
+            setSelectedMatchForScore(null);
           }}
-          onClose={() => setSelectedMatch(null)}
+          onClose={() => setSelectedMatchForScore(null)}
+        />
+      )}
+
+      {/* Edit Match Fixture Modal */}
+      {selectedMatchForEdit && (
+        <MatchForm
+          tournamentId={tournament.id}
+          players={tournamentPlayers}
+          existingMatch={selectedMatchForEdit}
+          onSubmit={(updatedData) => {
+            onUpdateMatch({
+              ...selectedMatchForEdit,
+              ...updatedData,
+            } as Match);
+            setSelectedMatchForEdit(null);
+          }}
+          onClose={() => setSelectedMatchForEdit(null)}
         />
       )}
 

@@ -1,16 +1,28 @@
 import type { Player, Match, Tournament, StandingRow } from './types';
 import { computeStandings } from './calculations';
 
-export const GROUP_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+export const GROUP_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
 
-// ─── 1. Group Assignment ───────────────────────────────────────────────────────
+// ─── 1. Group Assignment & Splitting Helpers ─────────────────────────────────
 
 /**
- * Distribute player IDs evenly into Groups A–H (or 2/4/8 groups).
+ * Split players into groups where each group has a target size (e.g. 3 or 4 players).
+ */
+export function splitPlayersIntoGroupsBySize(
+  playerIds: string[],
+  playersPerGroup: number = 4
+): Record<string, string[]> {
+  const size = Math.max(2, Math.min(playersPerGroup, playerIds.length || 2));
+  const numGroups = Math.max(1, Math.ceil(playerIds.length / size));
+  return buildDefaultGroupAssignments(playerIds, numGroups);
+}
+
+/**
+ * Distribute player IDs evenly into specified number of Groups (A, B, C, D...).
  */
 export function buildDefaultGroupAssignments(
   playerIds: string[],
-  groupCount: number = 8
+  groupCount: number = 4
 ): Record<string, string[]> {
   const actualCount = Math.max(1, Math.min(groupCount, GROUP_LETTERS.length));
   const groups: Record<string, string[]> = {};
@@ -27,14 +39,22 @@ export function buildDefaultGroupAssignments(
   return groups;
 }
 
+/**
+ * Shuffle an array of player IDs for randomized group draws.
+ */
+export function shufflePlayerIds(playerIds: string[]): string[] {
+  const arr = [...playerIds];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // ─── 2. Group Stage Fixture Generation ─────────────────────────────────────────
 
 /**
  * Generate single round-robin group fixtures for a specific group of players.
- * For 4 players (A, B, C, D):
- * Match 1: A vs B, Match 2: C vs D
- * Match 3: A vs C, Match 4: B vs D
- * Match 5: A vs D, Match 6: B vs C
  */
 export function generateSingleGroupFixtures(
   tournamentId: string,
@@ -126,9 +146,9 @@ export function computeAllGroupSummaries(
 
   return groupNames.map(gName => {
     const gMatches = groupMatches.filter(m => m.group_name === gName || (m.round && m.round.startsWith(gName)));
-    
+
     // Get players in this group
-    let gPlayerIds = new Set<string>();
+    const gPlayerIds = new Set<string>();
     if (groupAssignments && groupAssignments[gName]) {
       groupAssignments[gName].forEach(id => gPlayerIds.add(id));
     }
@@ -168,8 +188,8 @@ export function checkAllGroupsComplete(summaries: GroupSummary[]): boolean {
 // ─── 4. World Cup Knockout Stage Generator ─────────────────────────────────────
 
 export interface KnockoutBlueprintNode {
-  match_code: string; // e.g. "R16-1", "QF1", "SF1", "FINAL"
-  round: string; // e.g. "Round of 16", "Quarter-Final", "Semi-Final", "Final"
+  match_code: string;
+  round: string;
   p1_source: { type: 'group_winner' | 'group_runner_up' | 'match_winner'; code: string; label: string };
   p2_source: { type: 'group_winner' | 'group_runner_up' | 'match_winner'; code: string; label: string };
   next_match_code?: string;
@@ -177,7 +197,7 @@ export interface KnockoutBlueprintNode {
 }
 
 /**
- * World Cup Knockout Bracket Template
+ * World Cup Knockout Bracket Template (Supports 2, 3, 4, 6, 8+ groups)
  */
 export function getKnockoutTemplate(groupCount: number = 8): KnockoutBlueprintNode[] {
   if (groupCount >= 8) {
@@ -216,6 +236,14 @@ export function getKnockoutTemplate(groupCount: number = 8): KnockoutBlueprintNo
 
       { match_code: 'SF1', round: 'Semi-Final', p1_source: { type: 'match_winner', code: 'QF1', label: 'Winner QF1' }, p2_source: { type: 'match_winner', code: 'QF2', label: 'Winner QF2' }, next_match_code: 'FINAL', next_slot: 'player1' },
       { match_code: 'SF2', round: 'Semi-Final', p1_source: { type: 'match_winner', code: 'QF3', label: 'Winner QF3' }, p2_source: { type: 'match_winner', code: 'QF4', label: 'Winner QF4' }, next_match_code: 'FINAL', next_slot: 'player2' },
+
+      { match_code: 'FINAL', round: 'Final', p1_source: { type: 'match_winner', code: 'SF1', label: 'Winner SF1' }, p2_source: { type: 'match_winner', code: 'SF2', label: 'Winner SF2' } },
+    ];
+  } else if (groupCount === 3) {
+    // 3 Groups -> 4 Qualifiers (SF1: 1st Group A vs 2nd Group B, SF2: 1st Group B vs 1st Group C -> Final)
+    return [
+      { match_code: 'SF1', round: 'Semi-Final', p1_source: { type: 'group_winner', code: 'A', label: '1st Group A' }, p2_source: { type: 'group_runner_up', code: 'B', label: '2nd Group B' }, next_match_code: 'FINAL', next_slot: 'player1' },
+      { match_code: 'SF2', round: 'Semi-Final', p1_source: { type: 'group_winner', code: 'B', label: '1st Group B' }, p2_source: { type: 'group_winner', code: 'C', label: '1st Group C' }, next_match_code: 'FINAL', next_slot: 'player2' },
 
       { match_code: 'FINAL', round: 'Final', p1_source: { type: 'match_winner', code: 'SF1', label: 'Winner SF1' }, p2_source: { type: 'match_winner', code: 'SF2', label: 'Winner SF2' } },
     ];
@@ -292,12 +320,6 @@ export function generateKnockoutBracketMatches(
 
 // ─── 5. Knockout Match Winner Progression & Cascade Updates ────────────────────
 
-/**
- * When a knockout match score is saved:
- * 1. Determines the winner (regular score or penalties).
- * 2. Advances winner to downstream next_match_id (player1 or player2 slot).
- * 3. If the winner changed, updates or clears downstream match if already completed.
- */
 export function advanceKnockoutWinner(
   allMatches: Match[],
   matchId: string,
