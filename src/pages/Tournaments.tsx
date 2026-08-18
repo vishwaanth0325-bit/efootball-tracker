@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { generateFixtures } from '../lib/fixtures';
+import { splitPlayersIntoGroupsBySize, generateAllGroupFixtures } from '../lib/tournamentEngine';
 import { Plus, Trophy, AlertTriangle, RefreshCw } from 'lucide-react';
 
 const Tournaments: React.FC = () => {
@@ -57,15 +58,31 @@ const Tournaments: React.FC = () => {
           }
 
           if (autoGenerateFixtures && selectedPlayerIds && selectedPlayerIds.length >= 2) {
-            const fixtures = generateFixtures(
-              newTournament.id,
-              selectedPlayerIds,
-              false,
-              [],
-              newTournament.format
-            );
-            if (fixtures.length > 0) {
-              await addMatches(fixtures as any);
+            if (newTournament.format === 'group_knockout' || newTournament.format === 'groups') {
+              const groupAssignments = splitPlayersIntoGroupsBySize(selectedPlayerIds, 4);
+              await updateTournament({
+                ...newTournament,
+                group_config: {
+                  group_count: Object.keys(groupAssignments).length,
+                  qualifiers_per_group: 2,
+                  group_assignments: groupAssignments,
+                },
+              });
+              const fixtures = generateAllGroupFixtures(newTournament.id, groupAssignments);
+              if (fixtures.length > 0) {
+                await addMatches(fixtures as any);
+              }
+            } else {
+              const fixtures = generateFixtures(
+                newTournament.id,
+                selectedPlayerIds,
+                false,
+                [],
+                newTournament.format
+              );
+              if (fixtures.length > 0) {
+                await addMatches(fixtures as any);
+              }
             }
           }
 

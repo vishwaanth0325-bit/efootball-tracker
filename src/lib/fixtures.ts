@@ -2,19 +2,29 @@ import type { Match, TournamentFormat } from './types';
 
 export interface GeneratedFixture {
   tournament_id: string;
+  stage?: 'league' | 'group' | 'knockout';
   round: string;
+  match_code?: string;
   player1_id: string;
   player2_id: string;
   status: 'upcoming';
 }
 
 /**
- * Generate round-robin fixtures using the standard circle method.
- * Guarantees: no self-matches, no duplicate pairs in same round, balanced rounds.
+ * Generate standard round-robin schedule using the Berger Tables / Circle Method.
+ * 
+ * Guarantees for ANY number of teams N >= 2:
+ * 1. Even N: Exactly (N - 1) rounds, N/2 matches per round, N*(N-1)/2 total matches.
+ * 2. Odd N: Automatically injects a virtual '__BYE__' team. Produces N rounds, (N-1)/2 matches per round, N*(N-1)/2 total matches.
+ * 3. Integrity: No self-matches, no duplicate pairings, balanced home/away distribution, each team plays at most once per round.
  */
 export function buildRoundRobinRounds(playerIds: string[]): [string, string][][] {
-  const players = [...playerIds];
-  if (players.length % 2 !== 0) {
+  const uniquePlayers = Array.from(new Set(playerIds.filter(Boolean)));
+  if (uniquePlayers.length < 2) return [];
+
+  const players = [...uniquePlayers];
+  const isOdd = players.length % 2 !== 0;
+  if (isOdd) {
     players.push('__BYE__');
   }
 
@@ -27,18 +37,23 @@ export function buildRoundRobinRounds(playerIds: string[]): [string, string][][]
   const rotating = players.slice(1);
 
   for (let r = 0; r < numRounds; r++) {
+    // Rotate players array clockwise around the fixed player at position 0
     const rot = [...rotating.slice(r), ...rotating.slice(0, r)];
     const left = [fixed, ...rot.slice(0, half - 1)];
     const right = [...rot.slice(half - 1)].reverse();
 
     const roundMatches: [string, string][] = [];
     for (let i = 0; i < half; i++) {
-      if (left[i] !== '__BYE__' && right[i] !== '__BYE__') {
-        // Alternate home/away for the fixed player
+      const p1 = left[i];
+      const p2 = right[i];
+
+      // Exclude virtual BYE matches from actual fixture schedule
+      if (p1 !== '__BYE__' && p2 !== '__BYE__') {
+        // Alternate home and away to balance venue advantages
         if (i === 0 && r % 2 === 1) {
-          roundMatches.push([right[i], left[i]]);
+          roundMatches.push([p2, p1]);
         } else {
-          roundMatches.push([left[i], right[i]]);
+          roundMatches.push([p1, p2]);
         }
       }
     }
@@ -49,7 +64,8 @@ export function buildRoundRobinRounds(playerIds: string[]): [string, string][][]
 }
 
 /**
- * Generate League / Round-Robin Fixtures
+ * Generate comprehensive League / Round-Robin Fixtures for any arbitrary number of teams.
+ * Supports Single (N*(N-1)/2 matches) and Double Round Robin (N*(N-1) matches).
  */
 export function generateLeagueFixtures(
   tournamentId: string,
@@ -57,202 +73,157 @@ export function generateLeagueFixtures(
   doubleRoundRobin: boolean = false,
   existingMatches: Match[] = []
 ): GeneratedFixture[] {
-  if (playerIds.length < 2) return [];
+  const cleanPlayerIds = Array.from(new Set(playerIds.filter(Boolean)));
+  if (cleanPlayerIds.length < 2) return [];
 
-  // Track existing match pairings to avoid duplicates
+  // Track existing match pairings using normalized keys to prevent duplicate fixtures
   const existingPairs = new Set<string>();
-  for (const m of existingMatches) {
-    if (m.tournament_id !== tournamentId) continue;
-    existingPairs.add(`${m.player1_id}|${m.player2_id}`);
-    if (!doubleRoundRobin) {
-      existingPairs.add(`${m.player2_id}|${m.player1_id}`);
+  for (let i = 0; i < existingMatches.length; i++) {
+    const m = existingMatches[i];
+    if (m.tournament_id !== tournamentId || !m.player1_id || !m.player2_id) continue;
+
+    if (doubleRoundRobin) {
+      existingPairs.add(`${m.player1_id}->${m.player2_id}`);
+    } else {
+      const canonicalKey = [m.player1_id, m.player2_id].sort().join('<->');
+      existingPairs.add(canonicalKey);
     }
   }
 
-  const rounds = buildRoundRobinRounds(playerIds);
+  const rounds = buildRoundRobinRounds(cleanPlayerIds);
   const fixtures: GeneratedFixture[] = [];
-  const seen = new Set<string>(existingPairs);
-
-  const addFixture = (p1: string, p2: string, round: string) => {
-    const key = `${p1}|${p2}`;
-    const reverseKey = `${p2}|${p1}`;
-    const alreadyExists = doubleRoundRobin
-      ? seen.has(key)
-      : seen.has(key) || seen.has(reverseKey);
-
-    if (!alreadyExists) {
-      fixtures.push({
-        tournament_id: tournamentId,
-        round,
-        player1_id: p1,
-        player2_id: p2,
-        status: 'upcoming',
-      });
-      seen.add(key);
-    }
-  };
-
-  // Leg 1
-  rounds.forEach((roundMatches, i) => {
-    roundMatches.forEach(([p1, p2]) => addFixture(p1, p2, `Round ${i + 1}`));
-  });
-
-  // Leg 2 (Reversed home/away)
-  if (doubleRoundRobin) {
-    rounds.forEach((roundMatches, i) => {
-      roundMatches.forEach(([p1, p2]) =>
-        addFixture(p2, p1, `Round ${rounds.length + i + 1} (Return)`)
-      );
-    });
-  }
-
-  return fixtures;
-}
-
-/**
- * Generate Knockout / Bracket Fixtures
- */
-export function generateKnockoutFixtures(
-  tournamentId: string,
-  playerIds: string[],
-  existingMatches: Match[] = []
-): GeneratedFixture[] {
-  if (playerIds.length < 2) return [];
-
-  const existingPairs = new Set<string>();
-  for (const m of existingMatches) {
-    if (m.tournament_id === tournamentId) {
-      existingPairs.add(`${m.player1_id}|${m.player2_id}`);
-      existingPairs.add(`${m.player2_id}|${m.player1_id}`);
-    }
-  }
-
-  const numPlayers = playerIds.length;
-  const fixtures: GeneratedFixture[] = [];
-
-  // Determine round naming based on player count
-  let roundName = 'Round 1';
-  if (numPlayers <= 2) {
-    roundName = 'Final';
-  } else if (numPlayers <= 4) {
-    roundName = 'Semi-Final';
-  } else if (numPlayers <= 8) {
-    roundName = 'Quarter-Final';
-  } else if (numPlayers <= 16) {
-    roundName = 'Round of 16';
-  } else if (numPlayers <= 32) {
-    roundName = 'Round of 32';
-  }
-
-  // Shuffle or pair players 1v2, 3v4, 5v6...
-  const shuffled = [...playerIds];
-  
-  // Pair players for the opening round
   let matchIndex = 1;
-  for (let i = 0; i < shuffled.length; i += 2) {
-    if (i + 1 < shuffled.length) {
-      const p1 = shuffled[i];
-      const p2 = shuffled[i + 1];
-      const key = `${p1}|${p2}`;
-      const reverseKey = `${p2}|${p1}`;
 
-      if (!existingPairs.has(key) && !existingPairs.has(reverseKey)) {
-        const title = numPlayers <= 2 
-          ? 'Final' 
-          : `${roundName} Match ${matchIndex}`;
-        
+  // Leg 1: Initial Round Robin
+  for (let rIdx = 0; rIdx < rounds.length; rIdx++) {
+    const roundMatches = rounds[rIdx];
+    const roundTitle = `Round ${rIdx + 1}`;
+
+    for (let mIdx = 0; mIdx < roundMatches.length; mIdx++) {
+      const [p1, p2] = roundMatches[mIdx];
+      const key = doubleRoundRobin
+        ? `${p1}->${p2}`
+        : [p1, p2].sort().join('<->');
+
+      if (!existingPairs.has(key)) {
         fixtures.push({
           tournament_id: tournamentId,
-          round: title,
+          stage: 'league',
+          round: roundTitle,
+          match_code: `R${rIdx + 1}-M${mIdx + 1}`,
           player1_id: p1,
           player2_id: p2,
           status: 'upcoming',
         });
+        existingPairs.add(key);
         matchIndex++;
       }
     }
   }
 
+  // Leg 2: Double Round Robin (Strict return fixtures with reversed home/away)
+  if (doubleRoundRobin) {
+    const leg1RoundCount = rounds.length;
+    for (let rIdx = 0; rIdx < rounds.length; rIdx++) {
+      const roundMatches = rounds[rIdx];
+      const returnRoundNumber = leg1RoundCount + rIdx + 1;
+      const roundTitle = `Round ${returnRoundNumber} (Return)`;
+
+      for (let mIdx = 0; mIdx < roundMatches.length; mIdx++) {
+        const [p1, p2] = roundMatches[mIdx];
+        const returnKey = `${p2}->${p1}`; // Reversed home/away pairing
+
+        if (!existingPairs.has(returnKey)) {
+          fixtures.push({
+            tournament_id: tournamentId,
+            stage: 'league',
+            round: roundTitle,
+            match_code: `R${returnRoundNumber}-M${mIdx + 1}`,
+            player1_id: p2,
+            player2_id: p1,
+            status: 'upcoming',
+          });
+          existingPairs.add(returnKey);
+          matchIndex++;
+        }
+      }
+    }
+  }
+
   return fixtures;
 }
 
 /**
- * Generate Groups Fixtures
- * Divides players into balanced groups (Group A, Group B, etc.) and generates round-robin matches
+ * Generate Group Stage Fixtures (only used when explicit multi-group tournament formats are selected).
  */
 export function generateGroupFixtures(
   tournamentId: string,
   playerIds: string[],
   numGroups: number = 2,
-  doubleRoundRobin: boolean = false,
-  existingMatches: Match[] = []
+  doubleRoundRobin: boolean = false
 ): GeneratedFixture[] {
-  if (playerIds.length < 2) return [];
+  const cleanPlayerIds = Array.from(new Set(playerIds.filter(Boolean)));
+  if (cleanPlayerIds.length < 2) return [];
 
-  const existingPairs = new Set<string>();
-  for (const m of existingMatches) {
-    if (m.tournament_id === tournamentId) {
-      existingPairs.add(`${m.player1_id}|${m.player2_id}`);
-      if (!doubleRoundRobin) {
-        existingPairs.add(`${m.player2_id}|${m.player1_id}`);
-      }
-    }
-  }
-
-  const actualGroupCount = Math.max(1, Math.min(numGroups, Math.floor(playerIds.length / 2)));
+  const actualGroupCount = Math.max(1, Math.min(numGroups, Math.floor(cleanPlayerIds.length / 2)));
   const groups: string[][] = Array.from({ length: actualGroupCount }, () => []);
 
-  // Distribute players across groups
-  playerIds.forEach((pid, idx) => {
+  // Distribute players across groups evenly
+  cleanPlayerIds.forEach((pid, idx) => {
     groups[idx % actualGroupCount].push(pid);
   });
 
   const fixtures: GeneratedFixture[] = [];
-  const groupLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const groupLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
 
-  groups.forEach((groupPlayers, groupIndex) => {
-    if (groupPlayers.length < 2) return;
-    const groupName = `Group ${groupLabels[groupIndex] || groupIndex + 1}`;
+  for (let gIdx = 0; gIdx < groups.length; gIdx++) {
+    const groupPlayers = groups[gIdx];
+    if (groupPlayers.length < 2) continue;
+
+    const groupName = `Group ${groupLabels[gIdx] || gIdx + 1}`;
     const groupRounds = buildRoundRobinRounds(groupPlayers);
 
-    groupRounds.forEach((roundMatches, rIdx) => {
-      roundMatches.forEach(([p1, p2]) => {
-        const key = `${p1}|${p2}`;
-        if (!existingPairs.has(key)) {
+    for (let rIdx = 0; rIdx < groupRounds.length; rIdx++) {
+      const roundMatches = groupRounds[rIdx];
+      for (let mIdx = 0; mIdx < roundMatches.length; mIdx++) {
+        const [p1, p2] = roundMatches[mIdx];
+        fixtures.push({
+          tournament_id: tournamentId,
+          stage: 'group',
+          round: `${groupName} - Round ${rIdx + 1}`,
+          match_code: `${groupName.replace('Group ', 'G')}-R${rIdx + 1}-M${mIdx + 1}`,
+          player1_id: p1,
+          player2_id: p2,
+          status: 'upcoming',
+        });
+      }
+    }
+
+    if (doubleRoundRobin) {
+      const baseRoundCount = groupRounds.length;
+      for (let rIdx = 0; rIdx < groupRounds.length; rIdx++) {
+        const roundMatches = groupRounds[rIdx];
+        for (let mIdx = 0; mIdx < roundMatches.length; mIdx++) {
+          const [p1, p2] = roundMatches[mIdx];
           fixtures.push({
             tournament_id: tournamentId,
-            round: `${groupName} - Round ${rIdx + 1}`,
-            player1_id: p1,
-            player2_id: p2,
+            stage: 'group',
+            round: `${groupName} - Round ${baseRoundCount + rIdx + 1} (Return)`,
+            match_code: `${groupName.replace('Group ', 'G')}-R${baseRoundCount + rIdx + 1}-M${mIdx + 1}`,
+            player1_id: p2,
+            player2_id: p1,
             status: 'upcoming',
           });
         }
-      });
-    });
-
-    if (doubleRoundRobin) {
-      groupRounds.forEach((roundMatches, rIdx) => {
-        roundMatches.forEach(([p1, p2]) => {
-          const key = `${p2}|${p1}`;
-          if (!existingPairs.has(key)) {
-            fixtures.push({
-              tournament_id: tournamentId,
-              round: `${groupName} - Round ${groupRounds.length + rIdx + 1} (Return)`,
-              player1_id: p2,
-              player2_id: p1,
-              status: 'upcoming',
-            });
-          }
-        });
-      });
+      }
     }
-  });
+  }
 
   return fixtures;
 }
 
 /**
- * Universal Fixture Generator that routes based on tournament format
+ * Universal Fixture Generator dispatcher that routes cleanly based on tournament format.
  */
 export function generateFixtures(
   tournamentId: string,
@@ -263,11 +234,13 @@ export function generateFixtures(
   numGroups: number = 2
 ): GeneratedFixture[] {
   switch (format) {
-    case 'knockout':
-      return generateKnockoutFixtures(tournamentId, playerIds, existingMatches);
     case 'groups':
     case 'group_knockout':
-      return generateGroupFixtures(tournamentId, playerIds, numGroups, doubleRoundRobin, existingMatches);
+      return generateGroupFixtures(tournamentId, playerIds, numGroups, doubleRoundRobin);
+    case 'knockout':
+      // For standalone knockout, generate league/prelim fixtures or bracket
+      return generateLeagueFixtures(tournamentId, playerIds, false, existingMatches);
+    case 'league_knockout':
     case 'league':
     case 'round_robin':
     default:
@@ -276,7 +249,7 @@ export function generateFixtures(
 }
 
 /**
- * Expected match count calculation helper
+ * Calculates exact expected match count for a given player count and tournament format.
  */
 export function countExpectedMatches(
   numPlayers: number,
@@ -287,7 +260,7 @@ export function countExpectedMatches(
   if (numPlayers < 2) return 0;
 
   if (format === 'knockout') {
-    return Math.floor(numPlayers / 2);
+    return numPlayers - 1;
   }
 
   if (format === 'groups' || format === 'group_knockout') {
@@ -304,7 +277,7 @@ export function countExpectedMatches(
     return total;
   }
 
-  // League / Round Robin
+  // League / Round-Robin: N*(N-1)/2 (single) or N*(N-1) (double)
   const single = (numPlayers * (numPlayers - 1)) / 2;
   return doubleRoundRobin ? single * 2 : single;
 }

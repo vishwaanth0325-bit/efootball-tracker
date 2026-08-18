@@ -1,6 +1,12 @@
 // ─── Enums / Unions ──────────────────────────────────────────────────────────
 
-export type TournamentFormat = 'league' | 'round_robin' | 'groups' | 'knockout' | 'group_knockout';
+export type TournamentFormat =
+  | 'league'
+  | 'round_robin'
+  | 'league_knockout'
+  | 'groups'
+  | 'knockout'
+  | 'group_knockout';
 export type TournamentStatus = 'upcoming' | 'ongoing' | 'completed';
 export type MatchStatus = 'upcoming' | 'completed';
 export type MatchResult = 'W' | 'D' | 'L';
@@ -40,6 +46,7 @@ export interface Tournament {
   end_date?: string;
   champion_id?: string;
   runner_up_id?: string;
+  knockout_qualifiers?: number; // Number of top teams qualifying for playoffs (e.g. 4, 8)
   group_config?: TournamentGroupConfig;
   created_at: string;
 }
@@ -56,10 +63,10 @@ export interface TournamentPlayer {
 export interface Match {
   id: string;
   tournament_id: string;
-  stage?: 'group' | 'knockout';
+  stage?: 'league' | 'group' | 'knockout';
   group_name?: string; // e.g. "Group A"
-  round?: string; // e.g. "Group A - Match 1", "Round of 16", "Quarter-Final", "Semi-Final", "Final"
-  match_code?: string; // e.g. "R16-1", "QF1", "SF1", "FINAL"
+  round?: string; // e.g. "Round 1", "Group A - Match 1", "Play-in Match 1", "Quarter-Final", "Semi-Final", "Final"
+  match_code?: string; // e.g. "L-R1-M1", "PI-1", "R16-1", "QF1", "SF1", "FINAL"
   player1_id?: string;
   player2_id?: string;
   player1_placeholder?: string; // e.g. "A1 (Winner Group A)", "Winner R16-1"

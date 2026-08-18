@@ -10,10 +10,11 @@ import {
   buildDefaultGroupAssignments,
   splitPlayersIntoGroupsBySize,
   generateKnockoutBracketMatches,
+  generateKnockoutBracketFromStandings,
   advanceKnockoutWinner,
   computeTournamentProgress,
 } from '../lib/tournamentEngine';
-import { generateFixtures } from '../lib/fixtures';
+import { generateLeagueFixtures } from '../lib/fixtures';
 import type { Match, TournamentFormat } from '../lib/types';
 import { LeaderboardTable } from '../components/dashboard/LeaderboardTable';
 import { UpcomingMatches } from '../components/dashboard/UpcomingMatches';
@@ -189,6 +190,7 @@ const TournamentDetails: React.FC = () => {
         // Save group assignments in tournament config
         await updateTournament({
           ...tournament,
+          format: genFormat,
           group_config: {
             group_count: Object.keys(groupAssignments).length,
             qualifiers_per_group: 2,
@@ -205,20 +207,33 @@ const TournamentDetails: React.FC = () => {
             setActiveTab('groups');
           }
         }
+      } else if (genFormat === 'knockout') {
+        // Direct Knockout Bracket
+        const bracketMatches = generateKnockoutBracketFromStandings(tournament.id, tournamentPlayers);
+        if (bracketMatches.length > 0) {
+          const success = await addMatches(bracketMatches as any);
+          if (success) {
+            showToast(`Created ${bracketMatches.length} knockout bracket matches!`, 'success');
+            setActiveTab('knockout');
+          }
+        }
       } else {
-        // Standard League or Knockout
-        const newFixtures = generateFixtures(
+        // Standard League or League + Knockout (Round Robin for all N players)
+        const leagueFixtures = generateLeagueFixtures(
           tournament.id,
           playerIds,
           false,
-          matches,
-          genFormat,
-          numGroups
+          matches
         );
-        if (newFixtures.length > 0) {
-          const success = await addMatches(newFixtures as any);
+        if (leagueFixtures.length > 0) {
+          await updateTournament({
+            ...tournament,
+            format: genFormat,
+          });
+          const success = await addMatches(leagueFixtures as any);
           if (success) {
-            showToast(`Created ${newFixtures.length} matches!`, 'success');
+            showToast(`Generated ${leagueFixtures.length} league fixtures (${playerIds.length} teams round-robin)!`, 'success');
+            setActiveTab('fixtures');
           }
         }
       }
@@ -247,7 +262,6 @@ const TournamentDetails: React.FC = () => {
 
       // 2. If requested, clear existing group matches and regenerate new fixtures
       if (shouldRegenerateFixtures) {
-        // Delete only group stage matches
         const groupMatchIds = matches.filter(m => m.stage === 'group' || (m.round && m.round.toLowerCase().startsWith('group'))).map(m => m.id);
         for (const mId of groupMatchIds) {
           await deleteMatch(mId);
@@ -296,13 +310,8 @@ const TournamentDetails: React.FC = () => {
     showToast(`Player moved to ${targetGroup}`, 'success');
   };
 
-  // Generate World Cup Knockout Stage from Completed Groups
+  // Generate Knockout Stage from Completed Groups or Standings
   const handleGenerateKnockoutStage = async () => {
-    if (groupSummaries.length === 0) {
-      showToast('No groups found to generate knockout bracket', 'error');
-      return;
-    }
-
     if (knockoutMatches.length > 0) {
       showToast('Knockout bracket is already generated!', 'info');
       setActiveTab('knockout');
@@ -311,11 +320,32 @@ const TournamentDetails: React.FC = () => {
 
     setIsProcessing(true);
     try {
-      const bracketMatches = generateKnockoutBracketMatches(tournament.id, groupSummaries);
+      let bracketMatches: Match[] = [];
+
+      if (isGroupsOrWorldCup) {
+        if (groupSummaries.length === 0) {
+          showToast('No groups found to generate knockout bracket', 'error');
+          return;
+        }
+        bracketMatches = generateKnockoutBracketMatches(tournament.id, groupSummaries);
+      } else {
+        // League or League + Knockout
+        if (standings.length < 2) {
+          showToast('Need at least 2 teams in standings to generate knockout playoffs', 'error');
+          return;
+        }
+        const qualifierCount = Math.min(
+          tournament.knockout_qualifiers || (standings.length >= 8 ? 8 : (standings.length >= 4 ? 4 : 2)),
+          standings.length
+        );
+        const qualifiedPlayers = standings.slice(0, qualifierCount).map(s => s.player);
+        bracketMatches = generateKnockoutBracketFromStandings(tournament.id, qualifiedPlayers);
+      }
+
       if (bracketMatches.length > 0) {
         const success = await addMatches(bracketMatches as any);
         if (success) {
-          showToast(`🏆 World Cup Knockout bracket generated! (${bracketMatches.length} matches)`, 'success');
+          showToast(`🏆 Knockout bracket generated! (${bracketMatches.length} matches)`, 'success');
           setActiveTab('knockout');
         }
       }
@@ -571,11 +601,11 @@ const TournamentDetails: React.FC = () => {
             </div>
           </div>
 
-          {/* Group Stage to Knockout Transition Banner */}
-          {isGroupsOrWorldCup && groupMatches.length > 0 && knockoutMatches.length === 0 && (
+          {/* Transition Banner to Knockout Stage */}
+          {((isGroupsOrWorldCup && groupMatches.length > 0) || (tournament.format === 'league_knockout' && matches.length > 0)) && knockoutMatches.length === 0 && (
             <div
               className={`card p-6 border flex flex-col sm:flex-row items-center justify-between gap-4 ${
-                allGroupsComplete
+                (isGroupsOrWorldCup ? allGroupsComplete : (matches.length > 0 && upcomingMatches.length === 0))
                   ? 'bg-emerald-500/10 border-emerald-500/40'
                   : 'bg-surface border-border-light'
               }`}
@@ -583,30 +613,36 @@ const TournamentDetails: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <h4 className="font-display font-bold text-lg text-text">
-                    {allGroupsComplete ? '🎉 Group Stage Completed!' : 'Group Stage in Progress'}
+                    {(isGroupsOrWorldCup ? allGroupsComplete : (matches.length > 0 && upcomingMatches.length === 0))
+                      ? '🎉 Regular Stage Completed!'
+                      : 'Stage in Progress'}
                   </h4>
-                  {allGroupsComplete && (
+                  {(isGroupsOrWorldCup ? allGroupsComplete : (matches.length > 0 && upcomingMatches.length === 0)) && (
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500 text-bg">
-                      Ready for Knockout
+                      Ready for Playoffs
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-text-muted mt-1">
-                  {allGroupsComplete
-                    ? 'All group matches are finished. Qualifiers (A1, A2, B1, B2...) are confirmed. Click to generate the World Cup bracket!'
-                    : 'Complete all group matches to determine the top qualifiers from each group for the knockout bracket.'}
+                  {isGroupsOrWorldCup
+                    ? 'All group matches are finished. Qualifiers are confirmed. Click to generate the knockout playoff bracket!'
+                    : `Top ${tournament.knockout_qualifiers || (standings.length >= 8 ? 8 : (standings.length >= 4 ? 4 : 2))} teams from standings qualify for the knockout playoffs.`}
                 </p>
               </div>
 
               <button
                 className={`btn text-xs sm:text-sm font-bold whitespace-nowrap ${
-                  allGroupsComplete ? 'btn-primary bg-emerald-600 hover:bg-emerald-500' : 'btn-secondary'
+                  (isGroupsOrWorldCup ? allGroupsComplete : (matches.length > 0 && upcomingMatches.length === 0))
+                    ? 'btn-primary bg-emerald-600 hover:bg-emerald-500'
+                    : 'btn-secondary'
                 }`}
                 onClick={handleGenerateKnockoutStage}
                 disabled={isProcessing}
               >
                 <Sparkles className="w-4 h-4 mr-1.5" />
-                {allGroupsComplete ? 'Generate Knockout Stage' : 'Generate Knockout (Manual Override)'}
+                {(isGroupsOrWorldCup ? allGroupsComplete : (matches.length > 0 && upcomingMatches.length === 0))
+                  ? 'Generate Knockout Playoffs'
+                  : 'Generate Knockout (Manual Override)'}
               </button>
             </div>
           )}
@@ -932,10 +968,11 @@ const TournamentDetails: React.FC = () => {
             value={genFormat}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setGenFormat(e.target.value as TournamentFormat)}
             options={[
-              { value: 'group_knockout', label: 'World Cup (Group Stage → Knockout Stage)' },
-              { value: 'groups', label: 'Group Stages Only' },
+              { value: 'league_knockout', label: 'League Stage → Knockout Playoffs' },
+              { value: 'league', label: 'League / Round Robin (Standings only)' },
               { value: 'knockout', label: 'Knockout Bracket Only' },
-              { value: 'league', label: 'League / Round Robin' },
+              { value: 'group_knockout', label: 'World Cup (Multi-Group Stage → Knockout Stage)' },
+              { value: 'groups', label: 'Group Stages Only' },
             ]}
           />
 

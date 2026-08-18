@@ -25,7 +25,18 @@ export const KnockoutBracket: React.FC<KnockoutBracketProps> = ({
   const [warningMatch, setWarningMatch] = useState<{ match: Match; p1: number; p2: number; winnerId?: string; penP1?: number; penP2?: number } | null>(null);
 
   // Group knockout matches into rounds in chronological order
-  const roundsOrder = ['Round of 16', 'Quarter-Final', 'Semi-Final', 'Final'];
+  const roundsOrder = [
+    'Preliminary Round',
+    'Play-in Round',
+    'Round of 64',
+    'Round of 32',
+    'Round of 16',
+    'Quarter-Final',
+    'Semi-Final',
+    'Final',
+  ];
+
+  // Capture all rounds in proper sequence
   const groupedRounds = roundsOrder
     .map(rName => ({
       roundName: rName,
@@ -33,11 +44,33 @@ export const KnockoutBracket: React.FC<KnockoutBracketProps> = ({
     }))
     .filter(gr => gr.matches.length > 0);
 
+  // Catch any custom round names not in predefined list
+  const knownRoundsSet = new Set(roundsOrder);
+  const otherRounds = knockoutMatches
+    .filter(m => m.round && !knownRoundsSet.has(m.round))
+    .reduce<Record<string, Match[]>>((acc, m) => {
+      const r = m.round || 'Knockout';
+      if (!acc[r]) acc[r] = [];
+      acc[r].push(m);
+      return acc;
+    }, {});
+
+  Object.entries(otherRounds).forEach(([rName, ms]) => {
+    groupedRounds.unshift({ roundName: rName, matches: ms });
+  });
+
   const finalMatch = knockoutMatches.find(m => m.round === 'Final');
-  const isFinalComplete = finalMatch && finalMatch.status === 'completed' && finalMatch.winner_id;
-  const champion = isFinalComplete ? players.find(p => p.id === finalMatch.winner_id) : undefined;
-  const runnerUpId = isFinalComplete ? (finalMatch.player1_id === finalMatch.winner_id ? finalMatch.player2_id : finalMatch.player1_id) : undefined;
-  const runnerUp = isFinalComplete ? players.find(p => p.id === runnerUpId) : undefined;
+  const isFinalComplete = finalMatch && finalMatch.status === 'completed';
+  const winnerId = finalMatch?.winner_id || (
+    finalMatch && finalMatch.player1_score !== undefined && finalMatch.player2_score !== undefined
+      ? (finalMatch.player1_score > finalMatch.player2_score ? finalMatch.player1_id : finalMatch.player2_id)
+      : undefined
+  );
+  const champion = isFinalComplete && winnerId ? players.find(p => p.id === winnerId) : undefined;
+  const runnerUpId = isFinalComplete && winnerId
+    ? (finalMatch.player1_id === winnerId ? finalMatch.player2_id : finalMatch.player1_id)
+    : undefined;
+  const runnerUp = isFinalComplete && runnerUpId ? players.find(p => p.id === runnerUpId) : undefined;
 
   const handleScoreSaveAttempt = (
     p1s: number,
@@ -121,7 +154,7 @@ export const KnockoutBracket: React.FC<KnockoutBracketProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Trophy className="w-5 h-5 text-accent" />
-            <h3 className="font-display text-xl font-bold text-text">World Cup Knockout Stage</h3>
+            <h3 className="font-display text-xl font-bold text-text">Knockout Stage & Playoffs</h3>
           </div>
           <span className="text-xs text-text-muted">Click any matchup card to enter or update results</span>
         </div>

@@ -25,7 +25,10 @@ export const TournamentForm: React.FC<TournamentFormProps> = ({
   const [name, setName] = useState(tournament?.name || '');
   const [season, setSeason] = useState(tournament?.season || 'Season 1');
   const [description, setDescription] = useState(tournament?.description || '');
-  const [format, setFormat] = useState<TournamentFormat>(tournament?.format || 'group_knockout');
+  const [format, setFormat] = useState<TournamentFormat>(tournament?.format || 'league_knockout');
+  const [knockoutQualifiers, setKnockoutQualifiers] = useState<number>(
+    tournament?.knockout_qualifiers || 4
+  );
   const status: TournamentStatus = tournament?.status || 'upcoming';
   const pointsWin = tournament?.points_win ?? 3;
   const pointsDraw = tournament?.points_draw ?? 1;
@@ -60,6 +63,8 @@ export const TournamentForm: React.FC<TournamentFormProps> = ({
         points_win: pointsWin,
         points_draw: pointsDraw,
         points_loss: pointsLoss,
+        knockout_qualifiers:
+          format === 'league_knockout' || format === 'knockout' ? knockoutQualifiers : undefined,
       },
       !tournament ? selectedPlayerIds : undefined,
       !tournament ? autoGenerate : undefined
@@ -99,13 +104,40 @@ export const TournamentForm: React.FC<TournamentFormProps> = ({
             value={format}
             onChange={(e) => setFormat(e.target.value as TournamentFormat)}
             options={[
-              { value: 'group_knockout', label: 'World Cup (Group Stage → Knockout Stage)' },
-              { value: 'groups', label: 'Groups Only' },
-              { value: 'knockout', label: 'Knockout Bracket' },
-              { value: 'league', label: 'League / Round Robin' },
+              { value: 'league_knockout', label: 'League Stage → Knockout Playoffs' },
+              { value: 'league', label: 'League / Round Robin (Standings only)' },
+              { value: 'knockout', label: 'Knockout Bracket Only' },
+              { value: 'group_knockout', label: 'World Cup (Multi-Group Stage → Knockout Stage)' },
+              { value: 'groups', label: 'Group Stages Only' },
             ]}
           />
         </div>
+
+        {(format === 'league_knockout' || format === 'knockout') && (
+          <div className="p-3 bg-surface rounded-xl border border-border-light space-y-1">
+            <label className="text-xs font-semibold text-text uppercase tracking-wider block">
+              Knockout Stage Qualification
+            </label>
+            <div className="flex items-center gap-3">
+              <select
+                className="form-input text-xs flex-1"
+                value={knockoutQualifiers}
+                onChange={(e) => setKnockoutQualifiers(Number(e.target.value))}
+              >
+                <option value={2}>Top 2 Qualify (Final)</option>
+                <option value={4}>Top 4 Qualify (Semi-Finals → Final)</option>
+                <option value={6}>Top 6 Qualify (Play-in Round → SF → Final)</option>
+                <option value={8}>Top 8 Qualify (Quarter-Finals → SF → Final)</option>
+                <option value={10}>Top 10 Qualify (Play-in Round → QF → SF → Final)</option>
+                <option value={12}>Top 12 Qualify (Play-in Round → QF → SF → Final)</option>
+                <option value={16}>Top 16 Qualify (Round of 16 → QF → SF → Final)</option>
+              </select>
+            </div>
+            <p className="text-[11px] text-text-muted">
+              Top teams in the league standings will advance to the knockout playoffs.
+            </p>
+          </div>
+        )}
 
         <Input
           id="tDescription"

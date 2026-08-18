@@ -23,7 +23,9 @@ export const MatchForm: React.FC<MatchFormProps> = ({
   const [player2Id, setPlayer2Id] = useState(existingMatch?.player2_id || '');
   const [round, setRound] = useState(existingMatch?.round || '');
   const [groupName, setGroupName] = useState(existingMatch?.group_name || '');
-  const [stage, setStage] = useState<'group' | 'knockout'>(existingMatch?.stage || (existingMatch?.round?.startsWith('Group') ? 'group' : 'knockout'));
+  const [stage, setStage] = useState<'league' | 'group' | 'knockout'>(
+    existingMatch?.stage || (existingMatch?.round?.startsWith('Group') ? 'group' : 'league')
+  );
   const [status, setStatus] = useState<'upcoming' | 'completed'>(existingMatch?.status || 'upcoming');
   const [player1Score, setPlayer1Score] = useState(existingMatch?.player1_score !== undefined && existingMatch?.player1_score !== null ? String(existingMatch.player1_score) : '');
   const [player2Score, setPlayer2Score] = useState(existingMatch?.player2_score !== undefined && existingMatch?.player2_score !== null ? String(existingMatch.player2_score) : '');
