@@ -22,13 +22,14 @@ CREATE TABLE IF NOT EXISTS tournaments (
   name TEXT NOT NULL,
   season TEXT NOT NULL,
   description TEXT,
-  format TEXT NOT NULL DEFAULT 'league' CHECK (format IN ('league', 'round_robin', 'groups', 'knockout', 'group_knockout')),
+  format TEXT NOT NULL DEFAULT 'league' CHECK (format IN ('league', 'league_knockout', 'knockout', 'group_knockout')),
   start_date DATE,
   end_date DATE,
   status TEXT NOT NULL DEFAULT 'upcoming' CHECK (status IN ('upcoming', 'ongoing', 'completed')),
   points_win INT NOT NULL DEFAULT 3,
   points_draw INT NOT NULL DEFAULT 1,
   points_loss INT NOT NULL DEFAULT 0,
+  knockout_qualifiers INT,
   champion_id UUID REFERENCES players(id) ON DELETE SET NULL,
   runner_up_id UUID REFERENCES players(id) ON DELETE SET NULL,
   group_config JSONB,
@@ -118,3 +119,17 @@ CREATE POLICY "Allow public all on matches" ON matches FOR ALL USING (true) WITH
 -- ALTER TABLE matches ADD COLUMN IF NOT EXISTS next_match_slot TEXT;
 -- ALTER TABLE matches ADD COLUMN IF NOT EXISTS source_match_1_id UUID;
 -- ALTER TABLE matches ADD COLUMN IF NOT EXISTS source_match_2_id UUID;
+
+-- ==============================================================================
+-- 7. CRITICAL FIX — Run these in Supabase SQL Editor to fix the live database:
+-- ==============================================================================
+-- Step 1: Drop the old format constraint (didn't include league_knockout)
+ALTER TABLE tournaments DROP CONSTRAINT IF EXISTS tournaments_format_check;
+
+-- Step 2: Add the correct constraint with league_knockout included
+ALTER TABLE tournaments ADD CONSTRAINT tournaments_format_check
+  CHECK (format IN ('league', 'league_knockout', 'knockout', 'group_knockout'));
+
+-- Step 3: Add missing knockout_qualifiers column (if not already present)
+ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS knockout_qualifiers INT;
+

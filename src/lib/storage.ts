@@ -72,9 +72,14 @@ function sanitizeTournamentForDb(t: Partial<Tournament>): Record<string, any> {
   if (t.points_win !== undefined) result.points_win = t.points_win;
   if (t.points_draw !== undefined) result.points_draw = t.points_draw;
   if (t.points_loss !== undefined) result.points_loss = t.points_loss;
+  if (t.knockout_qualifiers !== undefined) result.knockout_qualifiers = t.knockout_qualifiers ?? null;
+  if (t.group_config !== undefined) result.group_config = t.group_config ?? null;
+  if (t.champion_id !== undefined) result.champion_id = t.champion_id ?? null;
+  if (t.runner_up_id !== undefined) result.runner_up_id = t.runner_up_id ?? null;
   if (t.created_at !== undefined) result.created_at = t.created_at;
   return result;
 }
+
 
 function sanitizeTournamentPlayerForDb(tp: Partial<TournamentPlayer>): Record<string, any> {
   const result: Record<string, any> = {};
