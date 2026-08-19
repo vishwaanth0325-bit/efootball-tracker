@@ -217,93 +217,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     loadData();
   }, [loadData]);
 
-  // Supabase Realtime Subscription: multi-device synchronization
+  // Supabase Realtime — debounced single handler for all table changes
   useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleChange = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        supabaseApi.fetchInitialData().then(({ data }) => {
+          if (data) {
+            dispatch({
+              type: 'LOAD_SUCCESS',
+              payload: {
+                players: data.players,
+                tournaments: data.tournaments,
+                tournamentPlayers: data.tournamentPlayers,
+                matches: data.matches,
+                activeTournamentId: preferences.getActiveTournamentId(),
+              },
+            });
+          }
+        });
+      }, 300); // 300ms debounce — batches rapid successive changes
+    };
+
     const channel = supabase
       .channel('shared-tournament-sync')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'players' },
-        () => {
-          supabaseApi.fetchInitialData().then(({ data }) => {
-            if (data) {
-              dispatch({
-                type: 'LOAD_SUCCESS',
-                payload: {
-                  players: data.players,
-                  tournaments: data.tournaments,
-                  tournamentPlayers: data.tournamentPlayers,
-                  matches: data.matches,
-                  activeTournamentId: preferences.getActiveTournamentId(),
-                },
-              });
-            }
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tournaments' },
-        () => {
-          supabaseApi.fetchInitialData().then(({ data }) => {
-            if (data) {
-              dispatch({
-                type: 'LOAD_SUCCESS',
-                payload: {
-                  players: data.players,
-                  tournaments: data.tournaments,
-                  tournamentPlayers: data.tournamentPlayers,
-                  matches: data.matches,
-                  activeTournamentId: preferences.getActiveTournamentId(),
-                },
-              });
-            }
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tournament_players' },
-        () => {
-          supabaseApi.fetchInitialData().then(({ data }) => {
-            if (data) {
-              dispatch({
-                type: 'LOAD_SUCCESS',
-                payload: {
-                  players: data.players,
-                  tournaments: data.tournaments,
-                  tournamentPlayers: data.tournamentPlayers,
-                  matches: data.matches,
-                  activeTournamentId: preferences.getActiveTournamentId(),
-                },
-              });
-            }
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'matches' },
-        () => {
-          supabaseApi.fetchInitialData().then(({ data }) => {
-            if (data) {
-              dispatch({
-                type: 'LOAD_SUCCESS',
-                payload: {
-                  players: data.players,
-                  tournaments: data.tournaments,
-                  tournamentPlayers: data.tournamentPlayers,
-                  matches: data.matches,
-                  activeTournamentId: preferences.getActiveTournamentId(),
-                },
-              });
-            }
-          });
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, handleChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, handleChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_players' }, handleChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, handleChange)
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, []);

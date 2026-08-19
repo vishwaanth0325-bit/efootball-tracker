@@ -107,8 +107,14 @@ const TournamentDetails: React.FC = () => {
   const upcomingMatches = matches.filter(m => m.status === 'upcoming');
   const completedMatches = matches.filter(m => m.status === 'completed');
 
-  const groupMatches = matches.filter(m => m.stage === 'group' || (m.round && m.round.toLowerCase().startsWith('group')));
-  const knockoutMatches = matches.filter(m => m.stage === 'knockout' || (m.round && !m.round.toLowerCase().startsWith('group')));
+  const groupMatches = matches.filter(m =>
+    m.stage === 'group' ||
+    (m.round && /^group\s+[a-z0-9]/i.test(m.round))
+  );
+  const knockoutMatches = matches.filter(m =>
+    m.stage === 'knockout' ||
+    (m.round && /^(final|semi-final|quarter-final|round of \d+|preliminary|play-in)/i.test(m.round))
+  );
 
   const isGroupsOrWorldCup =
     tournament.format === 'group_knockout' ||

@@ -103,7 +103,11 @@ export function computePlayerStats(
     goals_for += myScore;
     goals_against += opScore;
 
-    if (myScore > opScore) { wins++; results.push('W'); }
+    // Check winner_id first (handles penalty shootout results where score is equal)
+    if (m.winner_id) {
+      if (m.winner_id === playerId) { wins++; results.push('W'); }
+      else { losses++; results.push('L'); }
+    } else if (myScore > opScore) { wins++; results.push('W'); }
     else if (myScore === opScore) { draws++; results.push('D'); }
     else { losses++; results.push('L'); }
   }
