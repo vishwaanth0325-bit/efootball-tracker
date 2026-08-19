@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useToast } from '../context/ToastContext';
@@ -9,7 +9,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { generateFixtures } from '../lib/fixtures';
-import { splitPlayersIntoGroupsBySize, generateAllGroupFixtures } from '../lib/tournamentEngine';
+import { buildGroupAssignments, computeHybridConfig, generateAllGroupFixtures } from '../lib/tournamentEngine';
 import { Plus, Trophy, AlertTriangle, RefreshCw } from 'lucide-react';
 
 const Tournaments: React.FC = () => {
@@ -25,16 +25,10 @@ const Tournaments: React.FC = () => {
   } = useApp();
   const { showToast } = useToast();
 
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const filteredTournaments = useMemo(() => {
-    if (statusFilter === 'all') return state.tournaments;
-    return state.tournaments.filter(t => t.status === statusFilter);
-  }, [state.tournaments, statusFilter]);
 
   const handleSaveTournament = async (
     data: Omit<Tournament, 'id' | 'created_at'>,
@@ -58,13 +52,14 @@ const Tournaments: React.FC = () => {
           }
 
           if (autoGenerateFixtures && selectedPlayerIds && selectedPlayerIds.length >= 2) {
-            if (newTournament.format === 'group_knockout' || newTournament.format === 'groups') {
-              const groupAssignments = splitPlayersIntoGroupsBySize(selectedPlayerIds, 4);
+            if (newTournament.format === 'group_knockout') {
+              const { G, q } = computeHybridConfig(selectedPlayerIds.length);
+              const groupAssignments = buildGroupAssignments(selectedPlayerIds, G);
               await updateTournament({
                 ...newTournament,
                 group_config: {
-                  group_count: Object.keys(groupAssignments).length,
-                  qualifiers_per_group: 2,
+                  group_count: G,
+                  qualifiers_per_group: Math.ceil(q),
                   group_assignments: groupAssignments,
                 },
               });
@@ -119,6 +114,8 @@ const Tournaments: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fadeIn">
+
+      {/* Error banner */}
       {state.loadError && (
         <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -134,40 +131,36 @@ const Tournaments: React.FC = () => {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="font-display text-3xl">Tournaments</h1>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)} disabled={isSubmitting}>
-          <Plus className="w-4 h-4 mr-2" />
-          New Tournament
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold">Tournaments</h1>
+          <p className="text-xs text-text-muted mt-0.5">
+            {state.tournaments.length} tournament{state.tournaments.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <button
+          className="btn btn-primary shrink-0"
+          onClick={() => setShowForm(true)}
+          disabled={isSubmitting}
+        >
+          <Plus className="w-4 h-4 mr-1.5" />
+          <span className="hidden sm:inline">New Tournament</span>
+          <span className="sm:hidden">New</span>
         </button>
       </div>
 
-      <div className="flex gap-2 border-b border-surface pb-2">
-        {['all', 'upcoming', 'ongoing', 'completed'].map(status => (
-          <button
-            key={status}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg capitalize transition-colors ${
-              statusFilter === status
-                ? 'bg-surface-light text-text border-b-2 border-accent'
-                : 'text-text-muted hover:text-text hover:bg-surface'
-            }`}
-            onClick={() => setStatusFilter(status)}
-          >
-            {status}
-          </button>
-        ))}
-      </div>
-
-      {filteredTournaments.length === 0 ? (
+      {/* Tournament grid */}
+      {state.tournaments.length === 0 ? (
         <EmptyState
-          title="No Tournaments Found"
-          description="Create a new tournament to get started."
+          title="No Tournaments Yet"
+          description="Create your first tournament to get started."
           icon={Trophy}
           action={{ label: 'Create Tournament', onClick: () => setShowForm(true) }}
         />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filteredTournaments.map(tournament => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {state.tournaments.map(tournament => (
             <TournamentCard
               key={tournament.id}
               tournament={tournament}
@@ -186,6 +179,7 @@ const Tournaments: React.FC = () => {
         </div>
       )}
 
+      {/* Form modal */}
       {(showForm || !!editingTournament) && (
         <TournamentForm
           tournament={editingTournament || undefined}
@@ -198,12 +192,13 @@ const Tournaments: React.FC = () => {
         />
       )}
 
+      {/* Delete confirm */}
       <ConfirmDialog
         isOpen={!!deletingId}
         onCancel={() => setDeletingId(null)}
         onConfirm={handleDelete}
         title="Delete Tournament"
-        message={`Are you sure you want to delete ${tToDelete?.name}? This will remove all associated matches and standings.`}
+        message={`Delete "${tToDelete?.name}"? This will remove all associated matches and standings.`}
         confirmLabel="Delete"
         danger={true}
       />

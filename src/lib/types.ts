@@ -2,9 +2,7 @@
 
 export type TournamentFormat =
   | 'league'
-  | 'round_robin'
   | 'league_knockout'
-  | 'groups'
   | 'knockout'
   | 'group_knockout';
 export type TournamentStatus = 'upcoming' | 'ongoing' | 'completed';

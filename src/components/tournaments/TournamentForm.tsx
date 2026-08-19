@@ -3,7 +3,7 @@ import type { Tournament, TournamentFormat, TournamentStatus, Player } from '../
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
-import { Users, CheckSquare, Square } from 'lucide-react';
+import { Users, CheckSquare, Square, Zap } from 'lucide-react';
 
 interface TournamentFormProps {
   tournament?: Tournament;
@@ -24,7 +24,6 @@ export const TournamentForm: React.FC<TournamentFormProps> = ({
 }) => {
   const [name, setName] = useState(tournament?.name || '');
   const [season, setSeason] = useState(tournament?.season || 'Season 1');
-  const [description, setDescription] = useState(tournament?.description || '');
   const [format, setFormat] = useState<TournamentFormat>(tournament?.format || 'league_knockout');
   const [knockoutQualifiers, setKnockoutQualifiers] = useState<number>(
     tournament?.knockout_qualifiers || 4
@@ -34,7 +33,6 @@ export const TournamentForm: React.FC<TournamentFormProps> = ({
   const pointsDraw = tournament?.points_draw ?? 1;
   const pointsLoss = tournament?.points_loss ?? 0;
 
-  // Participant selection for new tournaments
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>(
     availablePlayers.map(p => p.id)
   );
@@ -57,7 +55,6 @@ export const TournamentForm: React.FC<TournamentFormProps> = ({
       {
         name: name.trim(),
         season: season.trim(),
-        description: description.trim() || undefined,
         format,
         status,
         points_win: pointsWin,
@@ -71,24 +68,27 @@ export const TournamentForm: React.FC<TournamentFormProps> = ({
     );
   };
 
+  const isEditing = !!tournament;
+
   return (
     <Modal
       isOpen={true}
       onClose={onClose}
-      title={tournament ? 'Edit Tournament' : 'Create World Cup / Tournament'}
-      maxWidth="max-w-xl"
+      title={isEditing ? 'Edit Tournament' : 'New Tournament'}
+      maxWidth="max-w-lg"
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Input
-          id="tName"
-          label="Tournament Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          placeholder="e.g. World Cup 2026, Champions League"
-        />
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
+        {/* Name + Season row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            id="tName"
+            label="Tournament Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            placeholder="e.g. World Cup 2026"
+          />
           <Input
             id="tSeason"
             label="Season / Edition"
@@ -97,72 +97,62 @@ export const TournamentForm: React.FC<TournamentFormProps> = ({
             required
             placeholder="e.g. Season 1"
           />
-
-          <Select
-            id="tFormat"
-            label="Format Structure"
-            value={format}
-            onChange={(e) => setFormat(e.target.value as TournamentFormat)}
-            options={[
-              { value: 'league_knockout', label: 'League Stage → Knockout Playoffs' },
-              { value: 'league', label: 'League / Round Robin (Standings only)' },
-              { value: 'knockout', label: 'Knockout Bracket Only' },
-              { value: 'group_knockout', label: 'World Cup (Multi-Group Stage → Knockout Stage)' },
-              { value: 'groups', label: 'Group Stages Only' },
-            ]}
-          />
         </div>
 
+        {/* Format */}
+        <Select
+          id="tFormat"
+          label="Format"
+          value={format}
+          onChange={(e) => setFormat(e.target.value as TournamentFormat)}
+          options={[
+            { value: 'league_knockout', label: 'League Stage → Knockout Playoffs' },
+            { value: 'league', label: 'League / Round Robin' },
+            { value: 'knockout', label: 'Knockout Bracket Only' },
+            { value: 'group_knockout', label: 'Groups + Knockout (World Cup)' },
+          ]}
+        />
+
+        {/* Knockout qualifier count — only for relevant formats */}
         {(format === 'league_knockout' || format === 'knockout') && (
-          <div className="p-3 bg-surface rounded-xl border border-border-light space-y-1">
-            <label className="text-xs font-semibold text-text uppercase tracking-wider block">
+          <div className="rounded-xl border border-border-light bg-surface p-4 space-y-2">
+            <p className="text-xs font-semibold text-text uppercase tracking-wider">
               Knockout Stage Qualification
-            </label>
-            <div className="flex items-center gap-3">
-              <select
-                className="form-input text-xs flex-1"
-                value={knockoutQualifiers}
-                onChange={(e) => setKnockoutQualifiers(Number(e.target.value))}
-              >
-                <option value={2}>Top 2 Qualify (Final)</option>
-                <option value={4}>Top 4 Qualify (Semi-Finals → Final)</option>
-                <option value={6}>Top 6 Qualify (Play-in Round → SF → Final)</option>
-                <option value={8}>Top 8 Qualify (Quarter-Finals → SF → Final)</option>
-                <option value={10}>Top 10 Qualify (Play-in Round → QF → SF → Final)</option>
-                <option value={12}>Top 12 Qualify (Play-in Round → QF → SF → Final)</option>
-                <option value={16}>Top 16 Qualify (Round of 16 → QF → SF → Final)</option>
-              </select>
-            </div>
+            </p>
+            <select
+              className="form-input text-sm w-full"
+              value={knockoutQualifiers}
+              onChange={(e) => setKnockoutQualifiers(Number(e.target.value))}
+            >
+              <option value={2}>Top 2 — Final</option>
+              <option value={4}>Top 4 — Semi-Finals → Final</option>
+              <option value={8}>Top 8 — Quarter-Finals → SF → Final</option>
+              <option value={16}>Top 16 — Round of 16 → QF → SF → Final</option>
+            </select>
             <p className="text-[11px] text-text-muted">
-              Top teams in the league standings will advance to the knockout playoffs.
+              Top teams from the league standings advance to the knockout playoffs.
             </p>
           </div>
         )}
 
-        <Input
-          id="tDescription"
-          label="Description (Optional)"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Tournament rules, prize pool, or notes..."
-        />
-
-        {/* Participant Selection */}
-        {!tournament && availablePlayers.length > 0 && (
-          <div className="space-y-2 pt-2 border-t border-border-light">
-            <div className="flex justify-between items-center text-xs">
-              <span className="font-semibold text-text flex items-center gap-1.5">
+        {/* Participant selection — new tournament only */}
+        {!isEditing && availablePlayers.length > 0 && (
+          <div className="rounded-xl border border-border-light bg-surface p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-text uppercase tracking-wider flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-accent" />
-                Select Participants ({selectedPlayerIds.length}/{availablePlayers.length})
+                Participants
+                <span className="text-text-muted font-normal normal-case">
+                  ({selectedPlayerIds.length}/{availablePlayers.length})
+                </span>
               </span>
-              <div className="flex gap-2 text-accent text-[11px]">
-                <button type="button" onClick={selectAll} className="hover:underline">Select All</button>
-                <span>•</span>
-                <button type="button" onClick={deselectAll} className="hover:underline">Clear</button>
+              <div className="flex gap-3 text-[11px] text-accent">
+                <button type="button" onClick={selectAll} className="hover:underline">All</button>
+                <button type="button" onClick={deselectAll} className="hover:underline text-text-muted">Clear</button>
               </div>
             </div>
 
-            <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 border border-border-light rounded-xl p-2 bg-surface/50">
+            <div className="max-h-44 overflow-y-auto space-y-1 pr-0.5">
               {availablePlayers.map(player => {
                 const isSelected = selectedPlayerIds.includes(player.id);
                 return (
@@ -170,38 +160,51 @@ export const TournamentForm: React.FC<TournamentFormProps> = ({
                     key={player.id}
                     type="button"
                     onClick={() => togglePlayer(player.id)}
-                    className={`w-full flex items-center justify-between p-2 rounded-lg text-xs text-left transition-colors ${
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-left transition-all ${
                       isSelected
                         ? 'bg-accent/15 border border-accent/40 text-text font-medium'
-                        : 'bg-surface hover:bg-surface-hover text-text-muted'
+                        : 'bg-surface-hover/40 hover:bg-surface-hover text-text-muted border border-transparent'
                     }`}
                   >
-                    <div className="flex items-center gap-2 truncate">
-                      {isSelected ? <CheckSquare className="w-3.5 h-3.5 text-accent shrink-0" /> : <Square className="w-3.5 h-3.5 text-text-muted shrink-0" />}
+                    <div className="flex items-center gap-2 min-w-0">
+                      {isSelected
+                        ? <CheckSquare className="w-3.5 h-3.5 text-accent shrink-0" />
+                        : <Square className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                      }
                       <span className="truncate">{player.name}</span>
                     </div>
-                    {player.team && <span className="text-[10px] text-text-muted shrink-0">{player.team}</span>}
+                    {player.team && (
+                      <span className="text-[10px] text-text-muted shrink-0 ml-2">{player.team}</span>
+                    )}
                   </button>
                 );
               })}
             </div>
 
-            <label className="flex items-center gap-2 pt-2 text-xs text-text cursor-pointer">
+            <label className="flex items-center gap-2 pt-1 text-xs text-text cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={autoGenerate}
                 onChange={e => setAutoGenerate(e.target.checked)}
                 className="rounded border-border-light text-accent focus:ring-accent"
               />
-              <span>Automatically generate group & match schedule immediately upon creation</span>
+              <Zap className="w-3 h-3 text-accent" />
+              <span>Auto-generate fixtures on creation</span>
             </label>
           </div>
         )}
 
-        <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-border-light">
-          <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={!name.trim() || !season.trim()}>
-            {tournament ? 'Save Changes' : 'Create Tournament'}
+        {/* Actions */}
+        <div className="flex justify-end gap-3 pt-2 border-t border-border-light">
+          <button type="button" onClick={onClose} className="btn btn-secondary">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={!name.trim() || !season.trim()}
+          >
+            {isEditing ? 'Save Changes' : 'Create Tournament'}
           </button>
         </div>
       </form>

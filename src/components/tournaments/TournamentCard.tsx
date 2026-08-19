@@ -14,6 +14,15 @@ interface TournamentCardProps {
   onClick: () => void;
 }
 
+const FORMAT_LABELS: Record<string, string> = {
+  league: 'League',
+  round_robin: 'Round Robin',
+  league_knockout: 'League + Knockout',
+  knockout: 'Knockout',
+  group_knockout: 'Groups + Knockout',
+  groups: 'Group Stage',
+};
+
 export const TournamentCard: React.FC<TournamentCardProps> = ({
   tournament,
   isActive,
@@ -29,66 +38,60 @@ export const TournamentCard: React.FC<TournamentCardProps> = ({
       className="card card-hover flex flex-col justify-between overflow-hidden border border-border-light cursor-pointer group"
       onClick={onClick}
     >
-      <div className="p-5">
-        <div className="flex justify-between items-start mb-3">
-          <div className="flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-accent shrink-0" />
-            <h3 className="font-display font-bold text-lg text-text group-hover:text-accent transition-colors truncate">
+      <div className="p-5 flex flex-col gap-3 flex-1">
+
+        {/* Title row */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Trophy className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+            <h3 className="font-display font-bold text-base text-text group-hover:text-accent transition-colors leading-tight line-clamp-2">
               {tournament.name}
             </h3>
           </div>
+          {isActive && <Badge variant="active">Active</Badge>}
+        </div>
+
+        {/* Meta row */}
+        <div className="flex items-center gap-2 text-xs text-text-muted flex-wrap">
+          <span>{tournament.season}</span>
+          <span className="opacity-40">•</span>
+          <span>{FORMAT_LABELS[tournament.format] ?? tournament.format}</span>
+        </div>
+
+        {/* Stats row */}
+        <div className="flex items-center gap-4 text-xs text-text-muted pt-2 border-t border-border-light/50 mt-auto">
           <div className="flex items-center gap-1.5">
-            {isActive && <Badge variant="active">Active</Badge>}
-            <Badge variant={tournament.status === 'completed' ? 'active' : 'default'}>
-              {tournament.status}
-            </Badge>
+            <Users size={13} className="text-accent" />
+            <span>{playerCount} Players</span>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 text-xs text-text-muted mb-4">
-          <span>Season {tournament.season}</span>
-          <span>•</span>
-          <span className="capitalize">{tournament.format.replace('_', ' ')}</span>
-        </div>
-
-        {tournament.description && (
-          <p className="text-xs text-text-muted line-clamp-2 mb-4">
-            {tournament.description}
-          </p>
-        )}
-
-        <div className="grid grid-cols-2 gap-3 text-xs pt-3 border-t border-border-light/50">
-          <div className="flex items-center gap-1.5 text-text-muted">
-            <Users size={14} className="text-accent" />
-            <span>{playerCount} Participants</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-text-muted">
-            <Gamepad2 size={14} className="text-accent" />
+          <div className="flex items-center gap-1.5">
+            <Gamepad2 size={13} className="text-accent" />
             <span>{matchCount} Matches</span>
           </div>
         </div>
       </div>
 
+      {/* Footer */}
       <div className="px-5 py-3 border-t border-border-light flex items-center justify-between bg-surface/50">
         <div className="flex items-center gap-1 text-xs font-semibold text-accent group-hover:translate-x-1 transition-transform">
-          <span>Manage Tournament</span>
-          <ArrowRight size={13} />
+          <span>Manage</span>
+          <ArrowRight size={12} />
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
             className="btn btn-ghost p-1.5 text-text-muted hover:text-text"
-            title="Edit Tournament"
+            title="Edit"
           >
-            <Pencil size={15} />
+            <Pencil size={14} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
             className="btn btn-ghost p-1.5 text-red-500 hover:text-red-400 hover:bg-red-500/10"
-            title="Delete Tournament"
+            title="Delete"
           >
-            <Trash2 size={15} />
+            <Trash2 size={14} />
           </button>
         </div>
       </div>

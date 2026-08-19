@@ -7,8 +7,8 @@ import {
   computeAllGroupSummaries,
   checkAllGroupsComplete,
   generateAllGroupFixtures,
-  buildDefaultGroupAssignments,
-  splitPlayersIntoGroupsBySize,
+  buildGroupAssignments,
+  computeHybridConfig,
   generateKnockoutBracketMatches,
   generateKnockoutBracketFromStandings,
   advanceKnockoutWinner,
@@ -82,8 +82,6 @@ const TournamentDetails: React.FC = () => {
   // Fixtures generation modal state
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [genFormat, setGenFormat] = useState<TournamentFormat>('group_knockout');
-  const [groupSplitMode, setGroupSplitMode] = useState<'size_4' | 'size_3' | 'custom_groups'>('size_4');
-  const [numGroups, setNumGroups] = useState(4);
 
   const [showClearFixturesConfirm, setShowClearFixturesConfirm] = useState(false);
   const [matchToDelete, setMatchToDelete] = useState<string | null>(null);
@@ -114,7 +112,6 @@ const TournamentDetails: React.FC = () => {
 
   const isGroupsOrWorldCup =
     tournament.format === 'group_knockout' ||
-    tournament.format === 'groups' ||
     groupMatches.length > 0;
 
   // Compute live group summaries
@@ -175,64 +172,53 @@ const TournamentDetails: React.FC = () => {
 
     setIsProcessing(true);
     try {
-      if (genFormat === 'group_knockout' || genFormat === 'groups') {
-        let groupAssignments: Record<string, string[]>;
+      if (genFormat === 'group_knockout') {
+        // Hybrid: G = ⌊N/4⌋ groups, auto-computed
+        const { G, K, q } = computeHybridConfig(playerIds.length);
+        const groupAssignments = buildGroupAssignments(playerIds, G);
+        const qualifiersPerGroup = Math.ceil(q);
 
-        if (groupSplitMode === 'size_3') {
-          groupAssignments = splitPlayersIntoGroupsBySize(playerIds, 3);
-        } else if (groupSplitMode === 'size_4') {
-          groupAssignments = splitPlayersIntoGroupsBySize(playerIds, 4);
-        } else {
-          const groupCount = Math.min(numGroups, Math.max(1, playerIds.length));
-          groupAssignments = buildDefaultGroupAssignments(playerIds, groupCount);
-        }
-
-        // Save group assignments in tournament config
         await updateTournament({
           ...tournament,
           format: genFormat,
           group_config: {
-            group_count: Object.keys(groupAssignments).length,
-            qualifiers_per_group: 2,
+            group_count: G,
+            qualifiers_per_group: qualifiersPerGroup,
             group_assignments: groupAssignments,
           },
         });
 
         const groupFixtures = generateAllGroupFixtures(tournament.id, groupAssignments);
-
         if (groupFixtures.length > 0) {
           const success = await addMatches(groupFixtures as any);
           if (success) {
-            showToast(`Generated ${groupFixtures.length} group matches across ${Object.keys(groupAssignments).length} groups!`, 'success');
+            showToast(
+              `Generated ${groupFixtures.length} matches across ${G} groups. Top ${qualifiersPerGroup} per group qualify (${K} total for knockout).`,
+              'success'
+            );
             setActiveTab('groups');
           }
         }
       } else if (genFormat === 'knockout') {
-        // Direct Knockout Bracket
         const bracketMatches = generateKnockoutBracketFromStandings(tournament.id, tournamentPlayers);
         if (bracketMatches.length > 0) {
           const success = await addMatches(bracketMatches as any);
           if (success) {
-            showToast(`Created ${bracketMatches.length} knockout bracket matches!`, 'success');
+            showToast(`Knockout bracket created — ${bracketMatches.length} matches!`, 'success');
             setActiveTab('knockout');
           }
         }
       } else {
-        // Standard League or League + Knockout (Round Robin for all N players)
-        const leagueFixtures = generateLeagueFixtures(
-          tournament.id,
-          playerIds,
-          false,
-          matches
-        );
+        // League / League + Knockout — full round-robin
+        const leagueFixtures = generateLeagueFixtures(tournament.id, playerIds, false, matches);
         if (leagueFixtures.length > 0) {
-          await updateTournament({
-            ...tournament,
-            format: genFormat,
-          });
+          await updateTournament({ ...tournament, format: genFormat });
           const success = await addMatches(leagueFixtures as any);
           if (success) {
-            showToast(`Generated ${leagueFixtures.length} league fixtures (${playerIds.length} teams round-robin)!`, 'success');
+            showToast(
+              `Generated ${leagueFixtures.length} league fixtures (${playerIds.length}-team round-robin).`,
+              'success'
+            );
             setActiveTab('fixtures');
           }
         }
@@ -285,7 +271,7 @@ const TournamentDetails: React.FC = () => {
   const handleReassignGroup = async (playerId: string, targetGroup: string) => {
     const currentAssignments: Record<string, string[]> = tournament.group_config?.group_assignments
       ? { ...(tournament.group_config.group_assignments as Record<string, string[]>) }
-      : buildDefaultGroupAssignments(tournamentPlayers.map(p => p.id), groupSummaries.length || 4);
+      : buildGroupAssignments(tournamentPlayers.map(p => p.id), groupSummaries.length || 4);
 
     // Remove player from all groups
     Object.keys(currentAssignments).forEach(g => {
@@ -467,8 +453,7 @@ const TournamentDetails: React.FC = () => {
             <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted mt-1.5">
               <span>Season {tournament.season}</span>
               <span>•</span>
-              <Badge variant="default">{tournament.format.replace('_', ' ')}</Badge>
-              {tournament.description && <span>• {tournament.description}</span>}
+              <Badge variant="default">{tournament.format.replace(/_/g, ' ')}</Badge>
             </div>
           </div>
 
@@ -479,7 +464,7 @@ const TournamentDetails: React.FC = () => {
                 onClick={() => setShowGroupManagerModal(true)}
                 disabled={isProcessing}
               >
-                <SlidersHorizontal className="w-3.5 h-3.5 mr-1 text-accent" /> Split / Manage Groups
+                <SlidersHorizontal className="w-3.5 h-3.5 mr-1 text-accent" /> Manage Groups
               </button>
             )}
 
@@ -969,76 +954,44 @@ const TournamentDetails: React.FC = () => {
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setGenFormat(e.target.value as TournamentFormat)}
             options={[
               { value: 'league_knockout', label: 'League Stage → Knockout Playoffs' },
-              { value: 'league', label: 'League / Round Robin (Standings only)' },
+              { value: 'league', label: 'League / Round Robin' },
               { value: 'knockout', label: 'Knockout Bracket Only' },
-              { value: 'group_knockout', label: 'World Cup (Multi-Group Stage → Knockout Stage)' },
-              { value: 'groups', label: 'Group Stages Only' },
+              { value: 'group_knockout', label: 'Groups + Knockout (World Cup)' },
             ]}
           />
 
-          {(genFormat === 'group_knockout' || genFormat === 'groups') && (
-            <div className="space-y-3 p-3 bg-surface rounded-xl border border-border-light">
-              <label className="text-xs font-semibold text-text uppercase tracking-wider block">Group Splitting Method</label>
-              
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setGroupSplitMode('size_4')}
-                  className={`p-2.5 rounded-lg border text-center font-medium transition-colors ${
-                    groupSplitMode === 'size_4'
-                      ? 'bg-accent text-bg border-accent font-bold'
-                      : 'bg-surface-hover text-text hover:border-accent/50'
-                  }`}
-                >
-                  4 Players / Group
-                  <span className="block text-[10px] opacity-80 mt-0.5">
-                    {Math.ceil(tournamentPlayers.length / 4)} Groups
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setGroupSplitMode('size_3')}
-                  className={`p-2.5 rounded-lg border text-center font-medium transition-colors ${
-                    groupSplitMode === 'size_3'
-                      ? 'bg-accent text-bg border-accent font-bold'
-                      : 'bg-surface-hover text-text hover:border-accent/50'
-                  }`}
-                >
-                  3 Players / Group
-                  <span className="block text-[10px] opacity-80 mt-0.5">
-                    {Math.ceil(tournamentPlayers.length / 3)} Groups
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setGroupSplitMode('custom_groups')}
-                  className={`p-2.5 rounded-lg border text-center font-medium transition-colors ${
-                    groupSplitMode === 'custom_groups'
-                      ? 'bg-accent text-bg border-accent font-bold'
-                      : 'bg-surface-hover text-text hover:border-accent/50'
-                  }`}
-                >
-                  Custom Group Count
-                  <span className="block text-[10px] opacity-80 mt-0.5">
-                    {numGroups} Groups
-                  </span>
-                </button>
+          {/* Info card for each format */}
+          {genFormat === 'group_knockout' && (() => {
+            const { G, K, q } = computeHybridConfig(tournamentPlayers.length);
+            return (
+              <div className="p-3 rounded-xl bg-accent/10 border border-accent/30 text-xs space-y-1">
+                <p className="font-semibold text-text">
+                  Auto-computed: {G} Groups of ~{Math.ceil(tournamentPlayers.length / G)} players
+                </p>
+                <p className="text-text-muted">
+                  Top {Math.ceil(q)} per group qualify → {K}-team knockout bracket
+                </p>
+                <p className="text-text-muted text-[10px]">
+                  G = ⌊{tournamentPlayers.length}/4⌋ = {G} &nbsp;•&nbsp; K = {K} &nbsp;•&nbsp; q = K/G ≈ {q.toFixed(2)}
+                </p>
               </div>
+            );
+          })()}
 
-              {groupSplitMode === 'custom_groups' && (
-                <div className="space-y-1 pt-2">
-                  <label className="text-xs text-text-muted">Number of Groups</label>
-                  <select className="form-input text-xs" value={numGroups} onChange={e => setNumGroups(Number(e.target.value))}>
-                    <option value={2}>2 Groups (Group A & B)</option>
-                    <option value={3}>3 Groups (Group A, B, C)</option>
-                    <option value={4}>4 Groups (Group A, B, C, D)</option>
-                    <option value={6}>6 Groups (Groups A–F)</option>
-                    <option value={8}>8 Groups (Groups A–H)</option>
-                  </select>
-                </div>
-              )}
+          {genFormat === 'knockout' && (
+            <div className="p-3 rounded-xl bg-surface border border-border-light text-xs text-text-muted">
+              Single-elimination bracket for all {tournamentPlayers.length} players.
+              {' '}Next power of 2 ≥ {tournamentPlayers.length}:{' '}
+              P = {(() => { let p = 1; while (p < tournamentPlayers.length) p *= 2; return p; })()}.
+              {' '}Top seeds receive byes automatically.
+            </div>
+          )}
+
+          {(genFormat === 'league' || genFormat === 'league_knockout') && (
+            <div className="p-3 rounded-xl bg-surface border border-border-light text-xs text-text-muted">
+              Round-robin (Circle method): {tournamentPlayers.length} players →{' '}
+              {tournamentPlayers.length - 1} rounds,{' '}
+              {(tournamentPlayers.length * (tournamentPlayers.length - 1)) / 2} total matches.
             </div>
           )}
 
