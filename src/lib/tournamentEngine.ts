@@ -370,6 +370,16 @@ export function buildDefaultGroupAssignments(
   return buildGroupAssignments(playerIds, groupCount);
 }
 
+/** Fisher-Yates shuffle — returns a new randomised copy of the array. */
+export function shufflePlayerIds(playerIds: string[]): string[] {
+  const arr = [...playerIds];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // ─── Group Summaries ──────────────────────────────────────────────────────────
 
 export interface GroupSummary {
