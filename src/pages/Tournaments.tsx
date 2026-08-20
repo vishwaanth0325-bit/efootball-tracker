@@ -9,7 +9,12 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { generateFixtures } from '../lib/fixtures';
-import { buildGroupAssignments, computeHybridConfig, generateAllGroupFixtures } from '../lib/tournamentEngine';
+import {
+  buildGroupAssignments,
+  computeHybridConfig,
+  generateAllGroupFixtures,
+  generateKnockoutBracketFromStandings,
+} from '../lib/tournamentEngine';
 import { Plus, Trophy, AlertTriangle, RefreshCw } from 'lucide-react';
 
 const Tournaments: React.FC = () => {
@@ -66,6 +71,12 @@ const Tournaments: React.FC = () => {
               const fixtures = generateAllGroupFixtures(newTournament.id, groupAssignments);
               if (fixtures.length > 0) {
                 await addMatches(fixtures as any);
+              }
+            } else if (newTournament.format === 'knockout') {
+              const players = selectedPlayerIds.map(id => state.players.find(p => p.id === id)!).filter(Boolean);
+              const bracketMatches = generateKnockoutBracketFromStandings(newTournament.id, players);
+              if (bracketMatches.length > 0) {
+                await addMatches(bracketMatches as any);
               }
             } else {
               const fixtures = generateFixtures(

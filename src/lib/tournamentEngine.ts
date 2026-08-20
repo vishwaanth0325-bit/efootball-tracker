@@ -109,17 +109,15 @@ export function generateKnockoutBracketFromStandings(
   if (N < 2) return [];
 
   const P = nextPow2(N);  // Next power of 2 ≥ N
-  const B = P - N;        // Byes assigned to seeds 1..B
-
   const now = new Date().toISOString();
   const playerBySeed = new Map<number, Player>();
   for (let i = 0; i < N; i++) {
     playerBySeed.set(i + 1, qualifiedPlayers[i]);
   }
 
-  // Build all main-bracket rounds (P/2 → 2 → Final)
+  // 1. Build all downstream round nodes (from P/2 down to 2)
   const matchesByRound = new Map<number, KnockoutStructureNode[]>();
-  let curSize = P;
+  let curSize = P / 2;
   while (curSize >= 2) {
     const numMatches = curSize / 2;
     const nodes: KnockoutStructureNode[] = [];
@@ -140,8 +138,8 @@ export function generateKnockoutBracketFromStandings(
     curSize = curSize / 2;
   }
 
-  // Wire progression links between consecutive rounds
-  curSize = P;
+  // 2. Wire downstream progression links (e.g. QF -> SF -> Final)
+  curSize = P / 2;
   while (curSize > 2) {
     const cur = matchesByRound.get(curSize)!;
     const next = matchesByRound.get(curSize / 2)!;
@@ -152,93 +150,75 @@ export function generateKnockoutBracketFromStandings(
     curSize = curSize / 2;
   }
 
-  // Populate Round-of-P matchups using seed i vs (P+1−i) pairing
+  // 3. Handle First Round (size P)
   const seedOrder = getBracketSeeds(P);
-  const roundPNodes = matchesByRound.get(P)!;
+  const firstRoundNodes: KnockoutStructureNode[] = [];
+  const pPrefix = getRoundCodePrefix(P);
+  const pRoundName = getRoundNameForSize(P);
+  let matchIndex = 1;
 
-  // Build preliminary (play-in) nodes for seeds that don't get a bye
-  // Seeds B+1 .. N all need to play in Round 1
-  // Preliminary map: which Round-of-P slot needs a play-in winner
-  const prelimNodes: KnockoutStructureNode[] = [];
-  const prelimBySeed = new Map<number, string>(); // seed → prelim node id
+  for (let mIdx = 0; mIdx < P / 2; mIdx++) {
+    const s1 = seedOrder[mIdx * 2];
+    const s2 = seedOrder[mIdx * 2 + 1];
+    const p1 = playerBySeed.get(s1);
+    const p2 = playerBySeed.get(s2);
 
-  if (B < N) {
-    // Seeds B+1 .. N must play. They fill Round-of-P slots that have seeds > B.
-    // For each pair (s, P+1-s) where both > B: create a preliminary match.
-    // For pairs where one seed ≤ B (bye) and the other > B: the bye seed goes direct,
-    //   and the other seed still needs a preliminary match vs the lowest remaining seed.
-    // The simplest correct implementation: list the non-bye seeds in order,
-    // pair them as (seed B+1 vs seed N), (seed B+2 vs seed N-1), etc. (M1 = N-P/2 matches)
-    const noByeSeeds: number[] = [];
-    for (let s = B + 1; s <= N; s++) noByeSeeds.push(s);
-    // noByeSeeds.length === N - B === 2*M1
-    const M1 = noByeSeeds.length / 2;
-    for (let i = 0; i < M1; i++) {
-      const highSeed = noByeSeeds[i];
-      const lowSeed = noByeSeeds[noByeSeeds.length - 1 - i];
-      const p1 = playerBySeed.get(highSeed);
-      const p2 = playerBySeed.get(lowSeed);
-      const code = `PI${i + 1}`;
+    const downstreamMatch = matchesByRound.get(P / 2)?.[Math.floor(mIdx / 2)];
+    const downstreamSlot: 'player1' | 'player2' = mIdx % 2 === 0 ? 'player1' : 'player2';
+
+    if (p1 && p2) {
+      // Both players exist -> Real match in Round of size P
+      const code = `${pPrefix}${matchIndex++}`;
       const node: KnockoutStructureNode = {
         id: generateUUID(),
         match_code: code,
-        round: 'Preliminary Round',
-        round_size: N,
-        seed1: highSeed,
-        seed2: lowSeed,
-        p1_source_label: `Seed ${highSeed}${p1 ? ': ' + p1.name : ''}`,
-        p2_source_label: `Seed ${lowSeed}${p2 ? ': ' + p2.name : ''}`,
-        p1_player_id: p1?.id,
-        p2_player_id: p2?.id,
+        round: pRoundName,
+        round_size: P,
+        seed1: s1,
+        seed2: s2,
+        p1_player_id: p1.id,
+        p2_player_id: p2.id,
+        p1_source_label: `Seed ${s1}: ${p1.name}`,
+        p2_source_label: `Seed ${s2}: ${p2.name}`,
+        next_match_id: downstreamMatch?.id,
+        next_match_slot: downstreamSlot,
       };
-      prelimNodes.push(node);
-      prelimBySeed.set(highSeed, node.id);
-      prelimBySeed.set(lowSeed, node.id);
+      firstRoundNodes.push(node);
+
+      if (downstreamMatch) {
+        if (downstreamSlot === 'player1') {
+          downstreamMatch.p1_source_label = `Winner ${code} (${p1.name} / ${p2.name})`;
+        } else {
+          downstreamMatch.p2_source_label = `Winner ${code} (${p1.name} / ${p2.name})`;
+        }
+      }
+    } else if (p1 && !p2) {
+      // Player 1 gets a BYE -> Advances directly to downstream match
+      if (downstreamMatch) {
+        if (downstreamSlot === 'player1') {
+          downstreamMatch.p1_player_id = p1.id;
+          downstreamMatch.p1_source_label = `Seed ${s1}: ${p1.name} (Bye)`;
+        } else {
+          downstreamMatch.p2_player_id = p1.id;
+          downstreamMatch.p2_source_label = `Seed ${s1}: ${p1.name} (Bye)`;
+        }
+      }
+    } else if (!p1 && p2) {
+      // Player 2 gets a BYE -> Advances directly to downstream match
+      if (downstreamMatch) {
+        if (downstreamSlot === 'player1') {
+          downstreamMatch.p1_player_id = p2.id;
+          downstreamMatch.p1_source_label = `Seed ${s2}: ${p2.name} (Bye)`;
+        } else {
+          downstreamMatch.p2_player_id = p2.id;
+          downstreamMatch.p2_source_label = `Seed ${s2}: ${p2.name} (Bye)`;
+        }
+      }
     }
   }
 
-  // Assign players/byes/prelim-winners into round-P slots
-  for (let mIdx = 0; mIdx < roundPNodes.length; mIdx++) {
-    const node = roundPNodes[mIdx];
-    const s1 = seedOrder[mIdx * 2];
-    const s2 = seedOrder[mIdx * 2 + 1];
-    node.seed1 = s1;
-    node.seed2 = s2;
-
-    const fillSlot = (seed: number, slot: 'p1' | 'p2') => {
-      const player = playerBySeed.get(seed);
-      const isBye = seed <= B;
-      if (isBye) {
-        if (slot === 'p1') {
-          node.p1_player_id = player?.id;
-          node.p1_source_label = `Seed ${seed}: ${player?.name || `Seed ${seed}`} (Bye)`;
-        } else {
-          node.p2_player_id = player?.id;
-          node.p2_source_label = `Seed ${seed}: ${player?.name || `Seed ${seed}`} (Bye)`;
-        }
-      } else {
-        // Find the prelim node responsible for this seed
-        const prelimId = prelimBySeed.get(seed);
-        const pNode = prelimId ? prelimNodes.find(n => n.id === prelimId) : undefined;
-        const label = `Winner ${pNode?.match_code || `PI-${seed}`}`;
-        if (pNode && !pNode.next_match_id) {
-          pNode.next_match_id = node.id;
-          pNode.next_match_slot = slot === 'p1' ? 'player1' : 'player2';
-        }
-        if (slot === 'p1') {
-          node.p1_source_label = label;
-        } else {
-          node.p2_source_label = label;
-        }
-      }
-    };
-
-    fillSlot(s1, 'p1');
-    fillSlot(s2, 'p2');
-  }
-
-  // Flatten to Match[]
-  const allNodes: KnockoutStructureNode[] = [...prelimNodes];
+  // 4. Collect all generated matches
+  const allNodes: KnockoutStructureNode[] = [...firstRoundNodes];
   matchesByRound.forEach(nodes => allNodes.push(...nodes));
 
   return allNodes.map(n => ({
@@ -249,8 +229,8 @@ export function generateKnockoutBracketFromStandings(
     match_code: n.match_code,
     player1_id: n.p1_player_id,
     player2_id: n.p2_player_id,
-    player1_placeholder: n.p1_source_label,
-    player2_placeholder: n.p2_source_label,
+    player1_placeholder: n.p1_source_label || (n.p1_player_id ? undefined : 'TBD'),
+    player2_placeholder: n.p2_source_label || (n.p2_player_id ? undefined : 'TBD'),
     next_match_id: n.next_match_id,
     next_match_slot: n.next_match_slot,
     status: 'upcoming' as const,
@@ -476,17 +456,26 @@ export function generateKnockoutBracketMatches(
   tournamentId: string,
   groupSummaries: GroupSummary[]
 ): Match[] {
-  // Build ordered list of qualifiers using bracket-crossing seeding:
-  // alternating winners then runners-up, interleaved across groups
+  const G = groupSummaries.length;
+  if (G === 0) return [];
+
   const winners = groupSummaries.map(gs => gs.winner).filter(Boolean) as Player[];
   const runners = groupSummaries.map(gs => gs.runnerUp).filter(Boolean) as Player[];
 
-  // Interleave to produce bracket-crossing pairing: W_A, RU_B, W_B, RU_A, ...
-  const qualifiers: Player[] = [];
-  const half = Math.max(winners.length, runners.length);
-  for (let i = 0; i < half; i++) {
-    if (i < winners.length) qualifiers.push(winners[i]);
-    if (i < runners.length) qualifiers.push(runners[runners.length - 1 - i]);
+  let qualifiers: Player[] = [];
+
+  if (G === 2) {
+    // 2 groups (A & B) -> A1, B1, A2, B2 -> SF1: A1 vs B2, SF2: B1 vs A2
+    qualifiers = [winners[0], winners[1], runners[0], runners[1]].filter(Boolean);
+  } else if (G === 4) {
+    // 4 groups (A, B, C, D) -> A1, B1, C1, D1, C2, D2, A2, B2
+    qualifiers = [
+      winners[0], winners[1], winners[2], winners[3],
+      runners[2], runners[3], runners[0], runners[1],
+    ].filter(Boolean);
+  } else {
+    // General G: Interleave winners and reverse runners
+    qualifiers = [...winners, ...runners.reverse()].filter(Boolean);
   }
 
   return generateKnockoutBracketFromStandings(tournamentId, qualifiers);

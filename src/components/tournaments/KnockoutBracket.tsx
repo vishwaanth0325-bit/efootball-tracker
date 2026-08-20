@@ -179,8 +179,13 @@ export const KnockoutBracket: React.FC<KnockoutBracketProps> = ({
                   const isComplete = match.status === 'completed';
                   const isLocked = !p1 || !p2;
 
-                  const p1Won = isComplete && match.winner_id === p1?.id;
-                  const p2Won = isComplete && match.winner_id === p2?.id;
+                  const winnerId = match.winner_id || (
+                    isComplete && match.player1_score !== undefined && match.player2_score !== undefined
+                      ? (match.player1_score > match.player2_score ? p1?.id : match.player2_score > match.player1_score ? p2?.id : undefined)
+                      : undefined
+                  );
+                  const p1Won = isComplete && winnerId === p1?.id;
+                  const p2Won = isComplete && winnerId === p2?.id;
 
                   return (
                     <div
