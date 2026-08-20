@@ -18,6 +18,8 @@ export const MatchCard: React.FC<MatchCardProps> = ({
   onDelete,
 }) => {
   const isCompleted = match.status === 'completed';
+  const p1Won = isCompleted && (match.winner_id ? match.winner_id === player1?.id : (match.player1_score ?? 0) > (match.player2_score ?? 0));
+  const p2Won = isCompleted && (match.winner_id ? match.winner_id === player2?.id : (match.player2_score ?? 0) > (match.player1_score ?? 0));
 
   return (
     <div className="card p-5 relative group flex flex-col justify-between border border-border-light hover:border-accent/40 transition-colors">
@@ -48,7 +50,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({
             <div className="min-w-0">
               {/* HIGHLIGHTED TEAM NAME */}
               <div className={`font-display font-bold text-base truncate flex items-center justify-end gap-1 ${
-                isCompleted && (match.player1_score ?? 0) > (match.player2_score ?? 0) ? 'text-accent' : 'text-text'
+                p1Won ? 'text-accent' : 'text-text'
               }`}>
                 <Shield className="w-3.5 h-3.5 text-accent shrink-0" />
                 <span className="truncate">{player1?.team || player1?.name || match.player1_placeholder || 'Team 1'}</span>
@@ -102,7 +104,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({
             <div className="min-w-0">
               {/* HIGHLIGHTED TEAM NAME */}
               <div className={`font-display font-bold text-base truncate flex items-center justify-start gap-1 ${
-                isCompleted && (match.player2_score ?? 0) > (match.player1_score ?? 0) ? 'text-accent' : 'text-text'
+                p2Won ? 'text-accent' : 'text-text'
               }`}>
                 <Shield className="w-3.5 h-3.5 text-accent shrink-0" />
                 <span className="truncate">{player2?.team || player2?.name || match.player2_placeholder || 'Team 2'}</span>

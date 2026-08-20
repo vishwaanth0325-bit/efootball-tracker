@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { useToast } from '../context/ToastContext';
 import type { Match } from '../lib/types';
+import { advanceKnockoutWinner } from '../lib/tournamentEngine';
 import { MatchCard } from '../components/matches/MatchCard';
 import { MatchForm } from '../components/matches/MatchForm';
 import { ScoreEntry } from '../components/matches/ScoreEntry';
@@ -13,7 +14,7 @@ import { Select } from '../components/ui/Select';
 import { Plus, Search, Trophy } from 'lucide-react';
 
 const Matches: React.FC = () => {
-  const { state, addMatch, updateMatch, deleteMatch } = useApp();
+  const { state, addMatch, updateMatch, updateTournament, deleteMatch } = useApp();
   const { showToast } = useToast();
 
   const [tournamentFilter, setTournamentFilter] = useState<string>(state.activeTournamentId || 'all');
@@ -90,17 +91,46 @@ const Matches: React.FC = () => {
     if (selectedMatch) {
       setIsSubmitting(true);
       try {
+        const computedWinnerId =
+          winnerId ||
+          (p1Score > p2Score
+            ? selectedMatch.player1_id
+            : p2Score > p1Score
+            ? selectedMatch.player2_id
+            : undefined);
+
         const success = await updateMatch({
           ...selectedMatch,
           status: 'completed',
           player1_score: p1Score,
           player2_score: p2Score,
-          winner_id: winnerId,
+          winner_id: computedWinnerId,
           penalty_player1_score: penaltyP1,
           penalty_player2_score: penaltyP2,
           updated_at: new Date().toISOString(),
         });
         if (success) {
+          // Advance knockout winner if there is a next match
+          if (computedWinnerId && selectedMatch.next_match_id) {
+            const advanced = advanceKnockoutWinner(state.matches, selectedMatch.id, computedWinnerId);
+            const downstream = advanced.find(m => m.id === selectedMatch.next_match_id);
+            if (downstream) {
+              await updateMatch(downstream);
+            }
+          }
+
+          // Crown champion if this was the Final
+          if (selectedMatch.round === 'Final' && computedWinnerId) {
+            const t = state.tournaments.find(tour => tour.id === selectedMatch.tournament_id);
+            if (t) {
+              await updateTournament({
+                ...t,
+                status: 'completed',
+                champion_id: computedWinnerId,
+              });
+            }
+          }
+
           showToast('Score saved', 'success');
           setSelectedMatch(null);
         }

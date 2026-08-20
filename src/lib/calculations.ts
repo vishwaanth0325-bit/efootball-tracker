@@ -172,10 +172,10 @@ export function computeStandings(
 
     // Head-to-head tiebreaker
     const h2h = computeH2H(a.id, b.id, completedTournamentMatches);
-    const gdH2H = h2h.player1_goals - h2h.player1_goals_against;
+    const gdH2H_a = h2h.player1_goals - h2h.player1_goals_against;
     const gdH2H_b = h2h.player2_goals - h2h.player2_goals_against;
     if (h2h.player1_wins !== h2h.player2_wins) return h2h.player2_wins - h2h.player1_wins;
-    if (gdH2H !== gdH2H_b) return gdH2H_b - gdH2H;
+    if (gdH2H_a !== gdH2H_b) return gdH2H_b - gdH2H_a;
     return h2h.player2_goals - h2h.player1_goals;
   });
 
@@ -276,6 +276,10 @@ export function getMatchResult(
   playerId: string
 ): MatchResult | null {
   if (match.status !== 'completed') return null;
+  // Respect winner_id for knockout penalty shootout results
+  if (match.winner_id) {
+    return match.winner_id === playerId ? 'W' : 'L';
+  }
   const isP1 = match.player1_id === playerId;
   const myScore = isP1 ? (match.player1_score ?? 0) : (match.player2_score ?? 0);
   const opScore = isP1 ? (match.player2_score ?? 0) : (match.player1_score ?? 0);
@@ -283,6 +287,7 @@ export function getMatchResult(
   if (myScore === opScore) return 'D';
   return 'L';
 }
+
 
 export function formatWinRate(rate: number): string {
   return `${rate.toFixed(1)}%`;

@@ -243,11 +243,12 @@ const TournamentDetails: React.FC = () => {
     setIsProcessing(true);
     try {
       // 1. Update tournament configuration
+      const existingQpg = tournament.group_config?.qualifiers_per_group ?? 2;
       await updateTournament({
         ...tournament,
         group_config: {
           group_count: Object.keys(newGroupAssignments).length,
-          qualifiers_per_group: 2,
+          qualifiers_per_group: existingQpg,
           group_assignments: newGroupAssignments,
         },
       });
