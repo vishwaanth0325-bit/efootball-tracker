@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 export const Sidebar: React.FC = () => {
-  const { state, clearAllData } = useApp();
+  const { state, clearAllData, setActiveTournament } = useApp();
   const { activeTournamentId, tournaments } = state;
   const { showToast } = useToast();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -57,14 +57,19 @@ export const Sidebar: React.FC = () => {
         </NavLink>
       </nav>
 
-      {activeTournament && (
-        <div className="p-4 border-t border-border-light">
-          <p className="text-xs text-text-muted mb-1 uppercase tracking-wider">Active Tournament</p>
-          <p className="text-sm font-medium text-text truncate" title={activeTournament.name}>
-            {activeTournament.name}
-          </p>
-        </div>
-      )}
+      <div className="p-4 border-t border-border-light">
+        <p className="text-xs text-text-muted mb-2 uppercase tracking-wider">Active Tournament</p>
+        <select 
+          className="w-full bg-bg border border-border-light rounded-lg px-2 py-2 text-sm text-text focus:outline-none focus:border-accent"
+          value={activeTournamentId || ''}
+          onChange={(e) => setActiveTournament(e.target.value || null)}
+        >
+          <option value="">All Tournaments</option>
+          {tournaments.map((t: { id: string; name: string }) => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+      </div>
 
       <div className="p-4 border-t border-border-light">
         <button

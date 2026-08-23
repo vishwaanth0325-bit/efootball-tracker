@@ -40,18 +40,19 @@ export const ScoreEntry: React.FC<ScoreEntryProps> = ({
   const requiresWinner = isKnockout && isTie;
 
   const handleSave = () => {
-    let winnerId = selectedWinnerId;
-    if (!winnerId) {
-      if (score1 > score2) winnerId = player1?.id;
-      else if (score2 > score1) winnerId = player2?.id;
-      else if (penaltyP1 > penaltyP2) winnerId = player1?.id;
+    let winnerId: string | undefined = undefined;
+    if (score1 > score2) winnerId = player1?.id;
+    else if (score2 > score1) winnerId = player2?.id;
+    else if (requiresWinner) {
+      if (penaltyP1 > penaltyP2) winnerId = player1?.id;
       else if (penaltyP2 > penaltyP1) winnerId = player2?.id;
+      else winnerId = selectedWinnerId || undefined;
     }
 
     onSave(
       score1,
       score2,
-      winnerId || undefined,
+      winnerId,
       requiresWinner ? penaltyP1 : undefined,
       requiresWinner ? penaltyP2 : undefined
     );

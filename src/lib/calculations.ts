@@ -103,8 +103,11 @@ export function computePlayerStats(
     goals_for += myScore;
     goals_against += opScore;
 
-    // Check winner_id first (handles penalty shootout results where score is equal)
-    if (m.winner_id) {
+    const isTie = myScore === opScore;
+    const isKnockout = m.stage === 'knockout' || (!m.group_name && !!m.round && !m.round.startsWith('Group') && (m.round.includes('Final') || m.round.includes('Round of')));
+
+    // Respect winner_id for knockout tiebreakers or normal non-tie games (e.g. overturned results)
+    if (m.winner_id && (!isTie || isKnockout)) {
       if (m.winner_id === playerId) { wins++; results.push('W'); }
       else { losses++; results.push('L'); }
     } else if (myScore > opScore) { wins++; results.push('W'); }
@@ -276,13 +279,16 @@ export function getMatchResult(
   playerId: string
 ): MatchResult | null {
   if (match.status !== 'completed') return null;
-  // Respect winner_id for knockout penalty shootout results
-  if (match.winner_id) {
-    return match.winner_id === playerId ? 'W' : 'L';
-  }
   const isP1 = match.player1_id === playerId;
   const myScore = isP1 ? (match.player1_score ?? 0) : (match.player2_score ?? 0);
   const opScore = isP1 ? (match.player2_score ?? 0) : (match.player1_score ?? 0);
+  const isTie = myScore === opScore;
+  const isKnockout = match.stage === 'knockout' || (!match.group_name && !!match.round && !match.round.startsWith('Group') && (match.round.includes('Final') || match.round.includes('Round of')));
+
+  if (match.winner_id && (!isTie || isKnockout)) {
+    return match.winner_id === playerId ? 'W' : 'L';
+  }
+  
   if (myScore > opScore) return 'W';
   if (myScore === opScore) return 'D';
   return 'L';
