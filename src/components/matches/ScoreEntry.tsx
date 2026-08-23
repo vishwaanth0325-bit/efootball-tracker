@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { Match, Player } from '../../lib/types';
 import { Modal } from '../ui/Modal';
-import { Minus, Plus, Trophy, Award, Undo2 } from 'lucide-react';
+import { Minus, Plus, Trophy, Award, Undo2, Shield, User } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useToast } from '../../context/ToastContext';
 
@@ -35,8 +35,8 @@ export const ScoreEntry: React.FC<ScoreEntryProps> = ({
 
   const [score1, setScore1] = useState(match.player1_score ?? 0);
   const [score2, setScore2] = useState(match.player2_score ?? 0);
-  const [team1, setTeam1] = useState(match.player1_team || '');
-  const [team2, setTeam2] = useState(match.player2_team || '');
+  const [team1, setTeam1] = useState(match.player1_team || player1?.team || '');
+  const [team2, setTeam2] = useState(match.player2_team || player2?.team || '');
   const [isUndoing, setIsUndoing] = useState(false);
 
   // Penalty / Winner override if tie in knockout
@@ -153,15 +153,23 @@ export const ScoreEntry: React.FC<ScoreEntryProps> = ({
 
         {/* Regular Time Score Input */}
         <div className="flex items-center justify-center w-full gap-4 sm:gap-8 mb-6">
-          {/* Player 1 */}
-          <div className="flex-1 flex flex-col items-center gap-3">
-            <span className="font-display font-bold text-lg text-center text-text truncate w-full px-2">
-              {player1?.name || 'Player 1'}
-            </span>
+          {/* Player 1 — team name primary, player name secondary */}
+          <div className="flex-1 flex flex-col items-center gap-2">
+            <div className="text-center">
+              <div className="font-display font-bold text-lg text-text flex items-center justify-center gap-1.5">
+                <Shield className="w-4 h-4 text-accent" />
+                {player1?.team || player1?.name || 'Player 1'}
+              </div>
+              {player1?.team && (
+                <div className="text-xs text-text-muted flex items-center justify-center gap-1 mt-0.5">
+                  <User className="w-3 h-3" />{player1.name}
+                </div>
+              )}
+            </div>
             <input 
               type="text" 
-              placeholder="Team Used (Optional)" 
-              className="text-center bg-surface border border-border-light rounded-lg px-2 py-1 text-xs w-full max-w-[140px] focus:border-accent outline-none"
+              placeholder="Team used in match" 
+              className="text-center bg-surface border border-border-light rounded-lg px-2 py-1 text-xs w-full max-w-[160px] focus:border-accent outline-none"
               value={team1}
               onChange={(e) => setTeam1(e.target.value)}
             />
@@ -191,15 +199,23 @@ export const ScoreEntry: React.FC<ScoreEntryProps> = ({
 
           <div className="font-display font-bold text-2xl text-text-muted opacity-40 shrink-0">VS</div>
 
-          {/* Player 2 */}
-          <div className="flex-1 flex flex-col items-center gap-3">
-            <span className="font-display font-bold text-lg text-center text-text truncate w-full px-2">
-              {player2?.name || 'Player 2'}
-            </span>
+          {/* Player 2 — team name primary, player name secondary */}
+          <div className="flex-1 flex flex-col items-center gap-2">
+            <div className="text-center">
+              <div className="font-display font-bold text-lg text-text flex items-center justify-center gap-1.5">
+                {player2?.team || player2?.name || 'Player 2'}
+                <Shield className="w-4 h-4 text-accent" />
+              </div>
+              {player2?.team && (
+                <div className="text-xs text-text-muted flex items-center justify-center gap-1 mt-0.5">
+                  {player2.name}<User className="w-3 h-3" />
+                </div>
+              )}
+            </div>
             <input 
               type="text" 
-              placeholder="Team Used (Optional)" 
-              className="text-center bg-surface border border-border-light rounded-lg px-2 py-1 text-xs w-full max-w-[140px] focus:border-accent outline-none"
+              placeholder="Team used in match" 
+              className="text-center bg-surface border border-border-light rounded-lg px-2 py-1 text-xs w-full max-w-[160px] focus:border-accent outline-none"
               value={team2}
               onChange={(e) => setTeam2(e.target.value)}
             />
