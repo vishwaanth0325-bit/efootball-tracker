@@ -12,8 +12,6 @@ export const Sidebar: React.FC = () => {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
 
-  const activeTournament = tournaments.find((t: { id: string }) => t.id === activeTournamentId);
-
   const handleClear = async () => {
     setIsClearing(true);
     try {
