@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import type { Match, Player } from '../../lib/types';
 import { Modal } from '../ui/Modal';
-import { Minus, Plus, Trophy, Award } from 'lucide-react';
+import { Minus, Plus, Trophy, Award, Undo2 } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
+import { useToast } from '../../context/ToastContext';
 
 interface ScoreEntryProps {
   match: Match;
@@ -12,7 +14,9 @@ interface ScoreEntryProps {
     p2Score: number,
     winnerId?: string,
     penaltyP1?: number,
-    penaltyP2?: number
+    penaltyP2?: number,
+    p1Team?: string,
+    p2Team?: string
   ) => void;
   onClose: () => void;
 }
@@ -24,10 +28,16 @@ export const ScoreEntry: React.FC<ScoreEntryProps> = ({
   onSave,
   onClose,
 }) => {
+  const { state, updateMatch, updateTournament } = useApp();
+  const { showToast } = useToast();
+
   const isKnockout = match.stage === 'knockout' || !match.group_name && match.round && !match.round.startsWith('Group') && (match.round.includes('Final') || match.round.includes('Round of'));
 
   const [score1, setScore1] = useState(match.player1_score ?? 0);
   const [score2, setScore2] = useState(match.player2_score ?? 0);
+  const [team1, setTeam1] = useState(match.player1_team || '');
+  const [team2, setTeam2] = useState(match.player2_team || '');
+  const [isUndoing, setIsUndoing] = useState(false);
 
   // Penalty / Winner override if tie in knockout
   const [penaltyP1, setPenaltyP1] = useState<number>(match.penalty_player1_score ?? 0);
@@ -54,8 +64,57 @@ export const ScoreEntry: React.FC<ScoreEntryProps> = ({
       score2,
       winnerId,
       requiresWinner ? penaltyP1 : undefined,
-      requiresWinner ? penaltyP2 : undefined
+      requiresWinner ? penaltyP2 : undefined,
+      team1,
+      team2
     );
+  };
+
+  const handleUndo = async () => {
+    setIsUndoing(true);
+    try {
+      const success = await updateMatch({
+        ...match,
+        status: 'upcoming',
+        player1_score: undefined,
+        player2_score: undefined,
+        player1_team: undefined,
+        player2_team: undefined,
+        penalty_player1_score: undefined,
+        penalty_player2_score: undefined,
+        winner_id: undefined,
+        updated_at: new Date().toISOString(),
+      } as any);
+
+      if (!success) return;
+
+      if (match.winner_id && match.next_match_id) {
+        const downstream = state.matches.find(m => m.id === match.next_match_id);
+        if (downstream) {
+          const slot = match.next_match_slot === 'player1' ? 'player1_id' : 'player2_id';
+          await updateMatch({
+            ...downstream,
+            [slot]: undefined,
+          } as any);
+        }
+      }
+
+      if (match.round === 'Final' && match.winner_id) {
+        const t = state.tournaments.find(tour => tour.id === match.tournament_id);
+        if (t && t.champion_id === match.winner_id) {
+          await updateTournament({
+            ...t,
+            status: 'ongoing',
+            champion_id: undefined,
+          });
+        }
+      }
+
+      showToast('Match result undone successfully', 'success');
+      onClose();
+    } finally {
+      setIsUndoing(false);
+    }
   };
 
   const updateScore = (playerNum: 1 | 2, delta: number) => {
@@ -99,6 +158,13 @@ export const ScoreEntry: React.FC<ScoreEntryProps> = ({
             <span className="font-display font-bold text-lg text-center text-text truncate w-full px-2">
               {player1?.name || 'Player 1'}
             </span>
+            <input 
+              type="text" 
+              placeholder="Team Used (Optional)" 
+              className="text-center bg-surface border border-border-light rounded-lg px-2 py-1 text-xs w-full max-w-[140px] focus:border-accent outline-none"
+              value={team1}
+              onChange={(e) => setTeam1(e.target.value)}
+            />
             <div className="flex items-center gap-2">
               <button
                 onClick={() => updateScore(1, -1)}
@@ -130,6 +196,13 @@ export const ScoreEntry: React.FC<ScoreEntryProps> = ({
             <span className="font-display font-bold text-lg text-center text-text truncate w-full px-2">
               {player2?.name || 'Player 2'}
             </span>
+            <input 
+              type="text" 
+              placeholder="Team Used (Optional)" 
+              className="text-center bg-surface border border-border-light rounded-lg px-2 py-1 text-xs w-full max-w-[140px] focus:border-accent outline-none"
+              value={team2}
+              onChange={(e) => setTeam2(e.target.value)}
+            />
             <div className="flex items-center gap-2">
               <button
                 onClick={() => updateScore(2, -1)}
@@ -217,13 +290,24 @@ export const ScoreEntry: React.FC<ScoreEntryProps> = ({
 
         <button
           onClick={handleSave}
-          disabled={Boolean(requiresWinner && !selectedWinnerId)}
+          disabled={Boolean(requiresWinner && !selectedWinnerId) || isUndoing}
           className="btn btn-primary w-full max-w-md py-3.5 text-base font-bold tracking-wide disabled:opacity-50"
         >
           {requiresWinner && !selectedWinnerId ? 'Select Match Winner to Save' : 'SAVE RESULT'}
         </button>
 
-        <button onClick={onClose} className="mt-3 text-text-muted hover:text-text text-xs underline">
+        {match.status === 'completed' && (
+          <button
+            onClick={handleUndo}
+            disabled={isUndoing}
+            className="btn btn-outline border-red-500/50 text-red-500 hover:bg-red-500/10 w-full max-w-md py-2.5 mt-3 text-sm font-semibold disabled:opacity-50"
+          >
+            <Undo2 className="w-4 h-4 mr-2" />
+            Undo Match Result
+          </button>
+        )}
+
+        <button onClick={onClose} className="mt-4 text-text-muted hover:text-text text-xs underline">
           Cancel
         </button>
       </div>

@@ -319,12 +319,14 @@ export const GroupTables: React.FC<GroupTablesProps> = ({
           match={selectedMatchForScore}
           player1={tournamentPlayers.find(p => p.id === selectedMatchForScore.player1_id)!}
           player2={tournamentPlayers.find(p => p.id === selectedMatchForScore.player2_id)!}
-          onSave={(p1s, p2s) => {
+          onSave={(p1s, p2s, winnerId, penP1, penP2, p1Team, p2Team) => {
             onUpdateMatch({
               ...selectedMatchForScore,
               status: 'completed',
               player1_score: p1s,
               player2_score: p2s,
+              player1_team: p1Team,
+              player2_team: p2Team,
               updated_at: new Date().toISOString(),
             });
             setSelectedMatchForScore(null);

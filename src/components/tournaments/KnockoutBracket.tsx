@@ -12,7 +12,9 @@ interface KnockoutBracketProps {
     p2Score: number,
     winnerId?: string,
     penaltyP1?: number,
-    penaltyP2?: number
+    penaltyP2?: number,
+    p1Team?: string,
+    p2Team?: string
   ) => void;
 }
 
@@ -22,7 +24,7 @@ export const KnockoutBracket: React.FC<KnockoutBracketProps> = ({
   onSaveScore,
 }) => {
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
-  const [warningMatch, setWarningMatch] = useState<{ match: Match; p1: number; p2: number; winnerId?: string; penP1?: number; penP2?: number } | null>(null);
+  const [warningMatch, setWarningMatch] = useState<{ match: Match; p1: number; p2: number; winnerId?: string; penP1?: number; penP2?: number; p1Team?: string; p2Team?: string } | null>(null);
 
   // Group knockout matches into rounds in chronological order
   const roundsOrder = [
@@ -77,7 +79,9 @@ export const KnockoutBracket: React.FC<KnockoutBracketProps> = ({
     p2s: number,
     winnerId?: string,
     penP1?: number,
-    penP2?: number
+    penP2?: number,
+    p1Team?: string,
+    p2Team?: string
   ) => {
     if (!selectedMatch) return;
 
@@ -87,11 +91,11 @@ export const KnockoutBracket: React.FC<KnockoutBracketProps> = ({
     const isWinnerChanging = prevWinner && prevWinner !== winnerId;
 
     if (nextMatch && nextMatch.status === 'completed' && isWinnerChanging) {
-      setWarningMatch({ match: selectedMatch, p1: p1s, p2: p2s, winnerId, penP1, penP2 });
+      setWarningMatch({ match: selectedMatch, p1: p1s, p2: p2s, winnerId, penP1, penP2, p1Team, p2Team });
       return;
     }
 
-    onSaveScore(selectedMatch, p1s, p2s, winnerId, penP1, penP2);
+    onSaveScore(selectedMatch, p1s, p2s, winnerId, penP1, penP2, p1Team, p2Team);
     setSelectedMatch(null);
   };
 
@@ -103,7 +107,9 @@ export const KnockoutBracket: React.FC<KnockoutBracketProps> = ({
         warningMatch.p2,
         warningMatch.winnerId,
         warningMatch.penP1,
-        warningMatch.penP2
+        warningMatch.penP2,
+        warningMatch.p1Team,
+        warningMatch.p2Team
       );
       setWarningMatch(null);
       setSelectedMatch(null);

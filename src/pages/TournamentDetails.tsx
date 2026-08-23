@@ -354,13 +354,17 @@ const TournamentDetails: React.FC = () => {
     p2s: number,
     winnerId?: string,
     penP1?: number,
-    penP2?: number
+    penP2?: number,
+    p1Team?: string,
+    p2Team?: string
   ) => {
     const updatedMatch: Match = {
       ...match,
       status: 'completed',
       player1_score: p1s,
       player2_score: p2s,
+      player1_team: p1Team,
+      player2_team: p2Team,
       winner_id: winnerId,
       penalty_player1_score: penP1,
       penalty_player2_score: penP2,
@@ -1028,15 +1032,17 @@ const TournamentDetails: React.FC = () => {
           match={selectedMatch}
           player1={state.players.find(p => p.id === selectedMatch.player1_id)!}
           player2={state.players.find(p => p.id === selectedMatch.player2_id)!}
-          onSave={async (p1s, p2s, winnerId, penP1, penP2) => {
+          onSave={async (p1s, p2s, winnerId, penP1, penP2, p1Team, p2Team) => {
             if (selectedMatch.stage === 'knockout') {
-              await handleSaveKnockoutScore(selectedMatch, p1s, p2s, winnerId, penP1, penP2);
+              await handleSaveKnockoutScore(selectedMatch, p1s, p2s, winnerId, penP1, penP2, p1Team, p2Team);
             } else {
               const success = await updateMatch({
                 ...selectedMatch,
                 status: 'completed',
                 player1_score: p1s,
                 player2_score: p2s,
+                player1_team: p1Team,
+                player2_team: p2Team,
                 winner_id: winnerId,
                 penalty_player1_score: penP1,
                 penalty_player2_score: penP2,

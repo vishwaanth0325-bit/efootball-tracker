@@ -71,6 +71,8 @@ export interface Match {
   player2_placeholder?: string; // e.g. "B2 (Runner-up Group B)", "Winner R16-2"
   player1_score?: number;
   player2_score?: number;
+  player1_team?: string;
+  player2_team?: string;
   penalty_player1_score?: number;
   penalty_player2_score?: number;
   winner_id?: string;

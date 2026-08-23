@@ -91,7 +91,9 @@ const Dashboard: React.FC = () => {
     p2Score: number,
     winnerId?: string,
     penaltyP1?: number,
-    penaltyP2?: number
+    penaltyP2?: number,
+    p1Team?: string,
+    p2Team?: string
   ) => {
     if (!selectedMatch) return;
     const computedWinnerId =
@@ -107,6 +109,8 @@ const Dashboard: React.FC = () => {
       status: 'completed',
       player1_score: p1Score,
       player2_score: p2Score,
+      player1_team: p1Team,
+      player2_team: p2Team,
       winner_id: computedWinnerId,
       penalty_player1_score: penaltyP1,
       penalty_player2_score: penaltyP2,
