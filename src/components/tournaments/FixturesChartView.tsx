@@ -358,7 +358,7 @@ export const FixturesChartView: React.FC<FixturesChartViewProps> = ({
           match={selectedMatch}
           player1={players.find(p => p.id === selectedMatch.player1_id)!}
           player2={players.find(p => p.id === selectedMatch.player2_id)!}
-          onSave={(p1s, p2s, winnerId, penP1, penP2, p1Team, p2Team) => {
+          onSave={(p1s, p2s, _winnerId, _penP1, _penP2, p1Team, p2Team) => {
             onUpdateMatch({
               ...selectedMatch,
               status: 'completed',
