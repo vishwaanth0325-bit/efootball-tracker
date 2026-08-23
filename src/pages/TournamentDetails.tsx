@@ -24,6 +24,7 @@ import { GroupTables } from '../components/tournaments/GroupTables';
 import { GroupManagerModal } from '../components/tournaments/GroupManagerModal';
 import { KnockoutBracket } from '../components/tournaments/KnockoutBracket';
 import { FixturesChartView } from '../components/tournaments/FixturesChartView';
+import { ResultsEntryTab } from '../components/tournaments/ResultsEntryTab';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -49,7 +50,7 @@ import {
   User,
 } from 'lucide-react';
 
-type Tab = 'overview' | 'groups' | 'knockout' | 'players' | 'fixtures' | 'standings';
+type Tab = 'overview' | 'groups' | 'knockout' | 'players' | 'fixtures' | 'standings' | 'results';
 
 const TournamentDetails: React.FC = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
@@ -441,6 +442,7 @@ const TournamentDetails: React.FC = () => {
     { key: 'players', label: `Players (${tournamentPlayers.length})` },
     { key: 'fixtures', label: `Fixtures (${matches.length})` },
     { key: 'standings', label: 'Standings' },
+    ...(matches.length > 0 ? [{ key: 'results' as Tab, label: `📋 Enter Results` }] : []),
   ];
 
   return (
@@ -913,6 +915,78 @@ const TournamentDetails: React.FC = () => {
             <LeaderboardTable rows={standings} />
           </div>
         </div>
+      )}
+
+      {/* TAB CONTENT: Enter Results */}
+      {activeTab === 'results' && (
+        <ResultsEntryTab
+          matches={matches}
+          players={tournamentPlayers}
+          isProcessing={isProcessing}
+          onSaveResult={async (match, p1Score, p2Score, p1Team, p2Team) => {
+            setIsProcessing(true);
+            try {
+              const winnerId =
+                p1Score > p2Score
+                  ? match.player1_id
+                  : p2Score > p1Score
+                  ? match.player2_id
+                  : undefined;
+              if (match.stage === 'knockout') {
+                await handleSaveKnockoutScore(match, p1Score, p2Score, winnerId, undefined, undefined, p1Team, p2Team);
+              } else {
+                const success = await updateMatch({
+                  ...match,
+                  status: 'completed',
+                  player1_score: p1Score,
+                  player2_score: p2Score,
+                  player1_team: p1Team,
+                  player2_team: p2Team,
+                  winner_id: winnerId,
+                  updated_at: new Date().toISOString(),
+                });
+                if (success) showToast('Result saved!', 'success');
+              }
+            } finally {
+              setIsProcessing(false);
+            }
+          }}
+          onUndoResult={async (match) => {
+            setIsProcessing(true);
+            try {
+              const success = await updateMatch({
+                ...match,
+                status: 'upcoming',
+                player1_score: undefined,
+                player2_score: undefined,
+                player1_team: undefined,
+                player2_team: undefined,
+                penalty_player1_score: undefined,
+                penalty_player2_score: undefined,
+                winner_id: undefined,
+                updated_at: new Date().toISOString(),
+              } as any);
+              if (success) {
+                if (match.winner_id && match.next_match_id) {
+                  const downstream = state.matches.find(m => m.id === match.next_match_id);
+                  if (downstream) {
+                    const slot = match.next_match_slot === 'player1' ? 'player1_id' : 'player2_id';
+                    await updateMatch({ ...downstream, [slot]: undefined } as any);
+                  }
+                }
+                if (match.round === 'Final' && match.winner_id) {
+                  const t = state.tournaments.find(tour => tour.id === match.tournament_id);
+                  if (t && t.champion_id === match.winner_id) {
+                    await updateTournament({ ...t, status: 'ongoing', champion_id: undefined });
+                  }
+                }
+                showToast('Match result undone — match is now unplayed', 'success');
+              }
+            } finally {
+              setIsProcessing(false);
+            }
+          }}
+        />
       )}
 
       {/* Add Players Modal */}
